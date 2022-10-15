@@ -1,6 +1,7 @@
 import unTimley_Catalog_explorer as ucx
+import tempfile
 
-directory = 'C:/Users/wcq637/Documents/Private/BYW/unTimely'
+directory = tempfile.gettempdir()
 
 #box_size = 500
 #target_ra = 209.2891781
