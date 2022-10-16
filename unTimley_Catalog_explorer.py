@@ -27,9 +27,9 @@ MERGE_SCAN = 2
 
 
 def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=False, overlays=False, overlay_color='green', overlay_labels=False,
-                        overlay_label_color='red', neowise_contrast=3, show_result_table_in_browser=True, save_result_table=False, result_table_format='ascii',
-                        result_table_extension='dat', open_finder_charts=False, finder_charts_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
-                        directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300):
+                          overlay_label_color='red', neowise_contrast=3, show_result_table_in_browser=True, save_result_table=False, result_table_format='ascii',
+                          result_table_extension='dat', open_finder_charts=False, finder_charts_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
+                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300):
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None):
@@ -54,7 +54,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             wcs = cutout.wcs
             x, y = wcs.world_to_pixel(position)
             return data, x, y, wcs
-        except:
+        except Exception:
             print('A problem occurred while creating an image for object ra={ra}, dec={dec}'.format(ra=ra, dec=dec))
             print(traceback.format_exc())
             return None, 0, 0, None
@@ -66,7 +66,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             image = image.transpose(Image.FLIP_TOP_BOTTOM)
             image = ImageOps.invert(image)
             return image
-        except:
+        except Exception:
             print('A problem occurred while creating a color image for object ra={ra}, dec={dec}'.format(ra=ra, dec=dec))
             print(traceback.format_exc())
             return None
@@ -104,7 +104,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             vmin, vmax = get_min_max(data)
             ax.imshow(data, vmin=vmin, vmax=vmax, cmap='gray_r')
             ax.axis('off')
-        except:
+        except Exception:
             print('A problem occurred while plotting an image for object ra={ra}, dec={dec}, band={band}'.format(ra=ra, dec=dec, band=band))
             print(traceback.format_exc())
 
@@ -126,7 +126,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         download_url = download_url.format(ra=ra, dec=dec, size=round(size/pixel_scale), band=band, epoch=epoch)
         try:
             return fits.open(download_file(download_url, cache=cache, show_progress=show_progress, timeout=timeout))
-        except:
+        except Exception:
             return None
 
     def get_year(mjd):
@@ -321,14 +321,14 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
     for i in range(len(data)):
         row = data[i]
 
-        #band = row['BAND']
-        #epoch = row['EPOCH']
+        # band = row['BAND']
+        # epoch = row['EPOCH']
         coadd_id = row['COADD_ID']
         catalog_filename = row['CATALOG_FILENAME']
         tile_center_ra = row['RA']
         tile_center_dec = row['DEC']
 
-        #print(band, coadd_id, epoch, catalog_filename, tile_center_ra, tile_center_dec)
+        # print(band, coadd_id, epoch, catalog_filename, tile_center_ra, tile_center_dec)
 
         match, px, py = box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
 
@@ -447,7 +447,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 if get_year(meanmjd) in (2011, 2013):
                     continue
                 images.append((hdu, get_epoch(meanmjd)))
-            except:
+            except Exception:
                 print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
                       .format(ra=ra, dec=dec, epoch=i))
                 print(traceback.format_exc())
@@ -483,7 +483,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 if get_year(meanmjd) in (2011, 2013):
                     continue
                 images.append((hdu, get_epoch(meanmjd)))
-            except:
+            except Exception:
                 print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
                       .format(ra=ra, dec=dec, epoch=i))
                 print(traceback.format_exc())
