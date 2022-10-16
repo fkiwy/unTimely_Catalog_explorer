@@ -6,7 +6,7 @@ import tempfile
 import traceback
 import subprocess
 import numpy as np
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits
@@ -61,8 +61,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
     def create_color_image(r, g, b):
         try:
+            xmax, ymax = g.shape
             vmin, vmax = get_min_max(g, lo=neowise_contrast, hi=100-neowise_contrast)
-            image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((500, 500), Image.NONE)
+            image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((10*xmax, 10*ymax), Image.NONE)
             image = image.transpose(Image.FLIP_TOP_BOTTOM)
             image = ImageOps.invert(image)
             return image
@@ -154,12 +155,14 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             subprocess.call([opener, filename])
 
     def calculate_magnitude(flux):
+        if flux <= 0:
+            return np.nan
         return 22.5 - 2.5 * math.log10(flux)
 
     def box_contains_target(box_center_ra, box_center_dec, target_ra, target_dec, box_size):
-        delta_ra = abs(box_center_ra - target_ra)
+        delta_ra = abs(box_center_ra - target_ra) * math.cos(box_center_dec)
         if 5 < delta_ra < 355:
-            return False, 0, 0
+            return False, 0, 0, 0, 0
 
         # World to pixel
         ra = math.radians(target_ra)
@@ -175,6 +178,8 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         x += box_size/2
         y += box_size/2
         y = box_size - y
+        a = x
+        b = y - 0.5
         x -= 0.5
         y += 0.5
 
@@ -190,7 +195,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if np.isnan(x) or np.isnan(y) or x < 0 or y < 0:
             match = False
 
-        return match, x, y
+        return match, x, y, a, b
 
     def find_catalog_entries(file_path, file_number):
         hdul = fits.open(base_url + file_path.replace('./', ''), cache=cache, show_progress=show_progress, timeout=timeout)
@@ -213,11 +218,11 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             catalog_ra = row['ra']
             catalog_dec = row['dec']
 
-            match, _, _ = box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, size)
+            match, _, _, x, y = box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, size)
 
             if match:
                 object_number += 1
-                object_label = str(file_number) + ':' + str(object_number)
+                object_label = str(file_number) + '.' + str(object_number)
 
                 target_coords = SkyCoord(target_ra*u.deg, target_dec*u.deg)
                 catalog_coords = SkyCoord(catalog_ra*u.deg, catalog_dec*u.deg)
@@ -277,9 +282,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 ))
 
                 if band == 1:
-                    coords_w1.append((object_label, row['ra'], row['dec']))
+                    coords_w1.append((object_label, row['ra'], row['dec'], x, y))
                 else:
-                    coords_w2.append((object_label, row['ra'], row['dec']))
+                    coords_w2.append((object_label, row['ra'], row['dec'], x, y))
 
             if i > 0 and i % 10000 == 0:
                 print(str(i) + '/' + str(tot_cat_entries))
@@ -330,7 +335,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         # print(band, coadd_id, epoch, catalog_filename, tile_center_ra, tile_center_dec)
 
-        match, px, py = box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
+        match, px, py, _, _ = box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
 
         if match:
             if coadd_id != prev_coadd_id:
@@ -433,7 +438,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         ra = target_ra
         dec = target_dec
-        img_size = box_size + pixel_scale
+        img_size = box_size  # + pixel_scale
 
         # Plot W1 images with corresponding overlays
         images = []
@@ -511,6 +516,93 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             start_file(filename)
 
         if animated_gif:
+
+            # Create animated GIF - W1 with overlays
+            images = []
+
+            for i in range(min(len(w1_images), len(overlay_coords_w1))):
+                w1_bucket = w1_images[i]
+                w1 = w1_bucket.data
+                year_obs = w1_bucket.year_obs
+
+                color_image = create_color_image(w1, w1, w1)
+                color_image.info['duration'] = 200
+
+                x = [coords[3] for coords in overlay_coords_w1[i]]
+                y = [coords[4] for coords in overlay_coords_w1[i]]
+
+                # Draw a crosshair
+                w, h = color_image.size
+                cx = w/2
+                cy = h/2
+                width = 3
+                draw = ImageDraw.Draw(color_image)
+                radius = 50
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+                radius = 2
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+
+                # Draw catalog overlays
+                for i in range(len(x)):
+                    cx = x[i] * 10
+                    cy = y[i] * 10
+                    radius = 5
+                    draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(0, 128, 0), width=width)
+
+                # Draw epoch text
+                draw.text((10, 10), 'W1 ' + year_obs, (255, 0, 0))
+
+                images.append(color_image)
+
+            filename = 'Animated_time_series_w1_' + create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+
+            if open_finder_charts:
+                start_file(filename)
+
+            # Create animated GIF - W2 with overlays
+            images = []
+
+            for i in range(min(len(w2_images), len(overlay_coords_w2))):
+                w2_bucket = w2_images[i]
+                w2 = w2_bucket.data
+                year_obs = w2_bucket.year_obs
+
+                color_image = create_color_image(w2, w2, w2)
+                color_image.info['duration'] = 200
+
+                x = [coords[3] for coords in overlay_coords_w2[i]]
+                y = [coords[4] for coords in overlay_coords_w2[i]]
+
+                # Draw a crosshair
+                w, h = color_image.size
+                cx = w/2
+                cy = h/2
+                width = 3
+                draw = ImageDraw.Draw(color_image)
+                radius = 50
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+                radius = 2
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+
+                # Draw catalog overlays
+                for i in range(len(x)):
+                    cx = x[i] * 10
+                    cy = y[i] * 10
+                    radius = 5
+                    draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(0, 128, 0), width=width)
+
+                # Draw epoch text
+                draw.text((10, 10), 'W2 ' + year_obs, (255, 0, 0))
+
+                images.append(color_image)
+
+            filename = 'Animated_time_series_w2_' + create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+
+            if open_finder_charts:
+                start_file(filename)
+
             w1_reordred = []
             w2_reordred = []
 
@@ -533,20 +625,26 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             if scan_dir_mode == MERGE_SCAN:
                 for i in range(0, len(w1_images), 2):
                     w1_asc = w1_images[i].data
-                    w1_des = w1_images[i+1].data
+                    try:
+                        w1_des = w1_images[i+1].data
+                    except IndexError:
+                        w1_des = w1_images[i].data
                     w1_images[i].data = (w1_asc+w1_des)/2
                     w1_reordred.append(w1_images[i])
 
                 for i in range(0, len(w2_images), 2):
                     w2_asc = w2_images[i].data
-                    w2_des = w2_images[i+1].data
+                    try:
+                        w2_des = w2_images[i+1].data
+                    except IndexError:
+                        w2_des = w2_images[i].data
                     w2_images[i].data = (w2_asc+w2_des)/2
                     w2_reordred.append(w2_images[i])
 
                 w1_images = w1_reordred
                 w2_images = w2_reordred
 
-            # Create animated GIF
+            # Create animated GIF - W1+W2 without overlays
             images = []
             for i in range(len(w1_images)):
                 w1_bucket = w1_images[i]
@@ -554,16 +652,18 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 w1 = w1_bucket.data
                 w2 = w2_bucket.data
                 color_image = create_color_image(w1, (w1+w2)/2, w2)
-                color_image.info['duration'] = 150
+                color_image.info['duration'] = 200
 
                 # Draw a crosshair
                 w, h = color_image.size
                 cx = w/2
                 cy = h/2
-                radius = 50
+                width = 3
                 draw = ImageDraw.Draw(color_image)
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=2)
-                draw.arc((cx-1, cy-1, cx+1, cy+1), start=0, end=360, fill=(255, 0, 0), width=2)
+                radius = 50
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+                radius = 2
+                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
 
                 images.append(color_image)
 
