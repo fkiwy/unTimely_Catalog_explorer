@@ -6,7 +6,7 @@ import tempfile
 import traceback
 import subprocess
 import numpy as np
-from PIL import Image, ImageOps, ImageDraw, ImageFont
+from PIL import Image, ImageOps, ImageDraw
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits
@@ -59,11 +59,11 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             print(traceback.format_exc())
             return None, 0, 0, None
 
-    def create_color_image(r, g, b):
+    def create_rgb_image(r, g, b):
         try:
             xmax, ymax = g.shape
             vmin, vmax = get_min_max(g, lo=neowise_contrast, hi=100-neowise_contrast)
-            image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((10*xmax, 10*ymax), Image.NONE)
+            image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((zoom*xmax, zoom*ymax), Image.NONE)
             image = image.transpose(Image.FLIP_TOP_BOTTOM)
             image = ImageOps.invert(image)
             return image
@@ -239,8 +239,11 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 # Calculate Vega magnitude from flux
                 mag_corr = 4 if band == 1 else 32
                 mag = calculate_magnitude(row['flux'] - mag_corr)
-                dmag = calculate_magnitude(row['dflux'] - mag_corr)
-                dmag = dmag/1000
+                if np.isnan(mag):
+                    dmag = np.nan
+                else:
+                    dmag = calculate_magnitude(row['dflux'] - mag_corr)
+                    dmag = dmag/1000
 
                 result_table.add_row((
                     object_label,
@@ -360,8 +363,8 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
     # print(file_series)
 
-    overlay_coords_w1 = []
-    overlay_coords_w2 = []
+    w1_overlays = []
+    w2_overlays = []
 
     if len(file_series) > 0:
         catalog_files = file_series[0]
@@ -412,9 +415,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 continue
             coords_w1, coords_w2 = find_catalog_entries(catalog_files[i], i)
             if len(coords_w1) > 0:
-                overlay_coords_w1.append(coords_w1)
+                w1_overlays.append(coords_w1)
             if len(coords_w2) > 0:
-                overlay_coords_w2.append(coords_w2)
+                w2_overlays.append(coords_w2)
 
         # result_table.sort('target_dist')
         # result_table.pprint_all()
@@ -459,12 +462,12 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         w1_images = []
 
-        for i in range(min(len(images), len(overlay_coords_w1))):
+        for i in range(min(len(images), len(w1_overlays))):
             image = images[i]
             w1, x, y, wcs = process_image_data(image[0])
-            overlay_label = [coords[0] for coords in overlay_coords_w1[i]]
-            overlay_ra = [coords[1] for coords in overlay_coords_w1[i]]
-            overlay_dec = [coords[2] for coords in overlay_coords_w1[i]]
+            overlay_label = [coords[0] for coords in w1_overlays[i]]
+            overlay_ra = [coords[1] for coords in w1_overlays[i]]
+            overlay_dec = [coords[2] for coords in w1_overlays[i]]
             w1_images.append(ImageBucket(w1, x, y, 'W1', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
 
         img_idx = 0
@@ -495,12 +498,12 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         w2_images = []
 
-        for i in range(min(len(images), len(overlay_coords_w2))):
+        for i in range(min(len(images), len(w2_overlays))):
             image = images[i]
             w2, x, y, wcs = process_image_data(image[0])
-            overlay_label = [coords[0] for coords in overlay_coords_w2[i]]
-            overlay_ra = [coords[1] for coords in overlay_coords_w2[i]]
-            overlay_dec = [coords[2] for coords in overlay_coords_w2[i]]
+            overlay_label = [coords[0] for coords in w2_overlays[i]]
+            overlay_ra = [coords[1] for coords in w2_overlays[i]]
+            overlay_dec = [coords[2] for coords in w2_overlays[i]]
             w2_images.append(ImageBucket(w2, x, y, 'W2', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
 
         for image_bucket in w2_images:
@@ -516,92 +519,16 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             start_file(filename)
 
         if animated_gif:
+            w1_images_plus_overlays = []
+            for i in range(min(len(w1_images), len(w1_overlays))):
+                w1_images_plus_overlays.append((w1_images[i], w1_overlays[i]))
 
-            # Create animated GIF - W1 with overlays
-            images = []
+            w2_images_plus_overlays = []
+            for i in range(min(len(w2_images), len(w2_overlays))):
+                w2_images_plus_overlays.append((w2_images[i], w2_overlays[i]))
 
-            for i in range(min(len(w1_images), len(overlay_coords_w1))):
-                w1_bucket = w1_images[i]
-                w1 = w1_bucket.data
-                year_obs = w1_bucket.year_obs
-
-                color_image = create_color_image(w1, w1, w1)
-                color_image.info['duration'] = 200
-
-                x = [coords[3] for coords in overlay_coords_w1[i]]
-                y = [coords[4] for coords in overlay_coords_w1[i]]
-
-                # Draw a crosshair
-                w, h = color_image.size
-                cx = w/2
-                cy = h/2
-                width = 3
-                draw = ImageDraw.Draw(color_image)
-                radius = 50
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
-                radius = 2
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
-
-                # Draw catalog overlays
-                for i in range(len(x)):
-                    cx = x[i] * 10
-                    cy = y[i] * 10
-                    radius = 5
-                    draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(0, 128, 0), width=width)
-
-                # Draw epoch text
-                draw.text((10, 10), 'W1 ' + year_obs, (255, 0, 0))
-
-                images.append(color_image)
-
-            filename = 'Animated_time_series_w1_' + create_obj_name(ra, dec) + '.gif'
-            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
-
-            if open_finder_charts:
-                start_file(filename)
-
-            # Create animated GIF - W2 with overlays
-            images = []
-
-            for i in range(min(len(w2_images), len(overlay_coords_w2))):
-                w2_bucket = w2_images[i]
-                w2 = w2_bucket.data
-                year_obs = w2_bucket.year_obs
-
-                color_image = create_color_image(w2, w2, w2)
-                color_image.info['duration'] = 200
-
-                x = [coords[3] for coords in overlay_coords_w2[i]]
-                y = [coords[4] for coords in overlay_coords_w2[i]]
-
-                # Draw a crosshair
-                w, h = color_image.size
-                cx = w/2
-                cy = h/2
-                width = 3
-                draw = ImageDraw.Draw(color_image)
-                radius = 50
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
-                radius = 2
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
-
-                # Draw catalog overlays
-                for i in range(len(x)):
-                    cx = x[i] * 10
-                    cy = y[i] * 10
-                    radius = 5
-                    draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(0, 128, 0), width=width)
-
-                # Draw epoch text
-                draw.text((10, 10), 'W2 ' + year_obs, (255, 0, 0))
-
-                images.append(color_image)
-
-            filename = 'Animated_time_series_w2_' + create_obj_name(ra, dec) + '.gif'
-            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
-
-            if open_finder_charts:
-                start_file(filename)
+            w1_images = w1_images_plus_overlays
+            w2_images = w2_images_plus_overlays
 
             w1_reordred = []
             w2_reordred = []
@@ -624,48 +551,161 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             # Merge scan directions
             if scan_dir_mode == MERGE_SCAN:
                 for i in range(0, len(w1_images), 2):
-                    w1_asc = w1_images[i].data
+                    w1_asc = w1_images[i][0].data
+                    w1_asc_y = w1_images[i][0].year_obs
+                    w1_asc_o = w1_images[i][1]
                     try:
-                        w1_des = w1_images[i+1].data
+                        w1_des = w1_images[i+1][0].data
+                        w1_des_o = w1_images[i+1][1]
                     except IndexError:
-                        w1_des = w1_images[i].data
-                    w1_images[i].data = (w1_asc+w1_des)/2
+                        w1_des = w1_asc
+                        w1_des_o = w1_asc_o
+                    w1_images[i][0].data = (w1_asc+w1_des)/2
+                    w1_images[i][0].year_obs = w1_asc_y[0:4]
+                    w1_asc_o.extend(w1_des_o)
                     w1_reordred.append(w1_images[i])
 
                 for i in range(0, len(w2_images), 2):
-                    w2_asc = w2_images[i].data
+                    w2_asc = w2_images[i][0].data
+                    w2_asc_y = w2_images[i][0].year_obs
+                    w2_asc_o = w2_images[i][1]
                     try:
-                        w2_des = w2_images[i+1].data
+                        w2_des = w2_images[i+1][0].data
+                        w2_des_o = w2_images[i+1][1]
                     except IndexError:
-                        w2_des = w2_images[i].data
-                    w2_images[i].data = (w2_asc+w2_des)/2
+                        w2_des = w2_asc
+                        w2_des_o = w2_asc_o
+                    w2_images[i][0].data = (w2_asc+w2_des)/2
+                    w2_images[i][0].year_obs = w2_asc_y[0:4]
+                    w2_asc_o.extend(w2_des_o)
                     w2_reordred.append(w2_images[i])
 
                 w1_images = w1_reordred
                 w2_images = w2_reordred
 
+            # Draw settings
+            zoom = 10
+            duration = 200
+            stroke_width = 3
+            circle_radius = 50
+            point_radius = 2
+            overlay_radius = 5
+            red = (255, 0, 0)
+            green = (0, 128, 0)
+
+            # Create animated GIF - W1 with overlays
+            images = []
+
+            for i in range(len(w1_images)):
+                w1_bucket = w1_images[i][0]
+                w1 = w1_bucket.data
+                year_obs = w1_bucket.year_obs
+
+                # Create RGB image
+                rgb_image = create_rgb_image(w1, w1, w1)
+                rgb_image.info['duration'] = duration
+
+                # Draw a crosshair
+                w, h = rgb_image.size
+                cx = w/2
+                cy = h/2
+                draw = ImageDraw.Draw(rgb_image)
+                draw.arc((cx-circle_radius, cy-circle_radius, cx+circle_radius, cy+circle_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
+                draw.arc((cx-point_radius, cy-point_radius, cx+point_radius, cy+point_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
+
+                # Draw catalog overlays
+                w1_overlays = w1_images[i][1]
+                x = [coords[3] for coords in w1_overlays]
+                y = [coords[4] for coords in w1_overlays]
+                for i in range(len(x)):
+                    cx = x[i] * zoom
+                    cy = y[i] * zoom
+                    draw.arc((cx-overlay_radius, cy-overlay_radius, cx+overlay_radius, cy+overlay_radius),
+                             start=0, end=360, fill=green, width=stroke_width)
+
+                # Draw epoch text
+                draw.text((10, 10), 'W1 ' + year_obs, red)
+
+                images.append(rgb_image)
+
+            filename = 'Animated_time_series_w1_' + create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+
+            if open_finder_charts:
+                start_file(filename)
+
+            # Create animated GIF - W2 with overlays
+            images = []
+
+            for i in range(len(w2_images)):
+                w2_bucket = w2_images[i][0]
+                w2 = w2_bucket.data
+                year_obs = w2_bucket.year_obs
+
+                # Create RGB image
+                rgb_image = create_rgb_image(w2, w2, w2)
+                rgb_image.info['duration'] = duration
+
+                # Draw a crosshair
+                w, h = rgb_image.size
+                cx = w/2
+                cy = h/2
+                draw = ImageDraw.Draw(rgb_image)
+                draw.arc((cx-circle_radius, cy-circle_radius, cx+circle_radius, cy+circle_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
+                draw.arc((cx-point_radius, cy-point_radius, cx+point_radius, cy+point_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
+
+                # Draw catalog overlays
+                w2_overlays = w2_images[i][1]
+                x = [coords[3] for coords in w2_overlays]
+                y = [coords[4] for coords in w2_overlays]
+                for i in range(len(x)):
+                    cx = x[i] * zoom
+                    cy = y[i] * zoom
+                    draw.arc((cx-overlay_radius, cy-overlay_radius, cx+overlay_radius, cy+overlay_radius),
+                             start=0, end=360, fill=green, width=stroke_width)
+
+                # Draw epoch text
+                draw.text((10, 10), 'W2 ' + year_obs, red)
+
+                images.append(rgb_image)
+
+            filename = 'Animated_time_series_w2_' + create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+
+            if open_finder_charts:
+                start_file(filename)
+
             # Create animated GIF - W1+W2 without overlays
             images = []
             for i in range(len(w1_images)):
-                w1_bucket = w1_images[i]
-                w2_bucket = w2_images[i]
+                w1_bucket = w1_images[i][0]
+                w2_bucket = w2_images[i][0]
                 w1 = w1_bucket.data
                 w2 = w2_bucket.data
-                color_image = create_color_image(w1, (w1+w2)/2, w2)
-                color_image.info['duration'] = 200
+                year_obs = w1_bucket.year_obs
+
+                # Create RGB image
+                rgb_image = create_rgb_image(w1, (w1+w2)/2, w2)
+                rgb_image.info['duration'] = duration
 
                 # Draw a crosshair
-                w, h = color_image.size
+                w, h = rgb_image.size
                 cx = w/2
                 cy = h/2
-                width = 3
-                draw = ImageDraw.Draw(color_image)
-                radius = 50
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
-                radius = 2
-                draw.arc((cx-radius, cy-radius, cx+radius, cy+radius), start=0, end=360, fill=(255, 0, 0), width=width)
+                draw = ImageDraw.Draw(rgb_image)
+                draw.arc((cx-circle_radius, cy-circle_radius, cx+circle_radius, cy+circle_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
+                draw.arc((cx-point_radius, cy-point_radius, cx+point_radius, cy+point_radius),
+                         start=0, end=360, fill=red, width=stroke_width)
 
-                images.append(color_image)
+                # Draw epoch text
+                draw.text((10, 10), 'W1+W2 ' + year_obs, red)
+
+                images.append(rgb_image)
 
             filename = 'Animated_time_series_' + create_obj_name(ra, dec) + '.gif'
             images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
