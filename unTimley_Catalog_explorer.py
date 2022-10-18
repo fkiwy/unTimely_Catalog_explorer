@@ -162,6 +162,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
     def box_contains_target(box_center_ra, box_center_dec, target_ra, target_dec, box_size):
         d = 5
+        # Preliminary filtering on dec
         if (target_dec > d and box_center_dec < d) or (target_dec < d and box_center_dec > d):
             return False, 0, 0
 
@@ -170,7 +171,10 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         ra0 = math.radians(box_center_ra)
         dec0 = math.radians(box_center_dec)
 
-        delta_ra = math.degrees(abs(ra0 - ra) * math.cos(dec0))
+        # Preliminary filtering on ra
+        delta_ra = ra0 - ra
+        delta_ra = 360 + delta_ra if delta_ra < 0 else delta_ra
+        delta_ra = math.degrees(delta_ra * math.cos(dec0))
         if d < delta_ra < 360 - d:
             return False, 0, 0
 
@@ -192,8 +196,8 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         w = WCS(naxis=2)
         w.wcs.crpix = [box_center, box_center]
         w.wcs.crval = [box_center_ra, box_center_dec]
-        w.wcs.cunit = ["deg", "deg"]
-        w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+        w.wcs.cunit = ['deg', 'deg']
+        w.wcs.ctype = ['RA---TAN', 'DEC--TAN']
         w.wcs.cdelt = [-0.000763888888889, 0.000763888888889]
         w.array_shape = [box_size, box_size]
         x, y = w.world_to_pixel(SkyCoord(target_ra*u.deg, target_dec*u.deg))
@@ -733,6 +737,10 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, w1, w1)
+
+                if rgb_image is None:
+                    continue
+
                 rgb_image.info['duration'] = duration
 
                 # Draw a crosshair
@@ -782,6 +790,10 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w2, w2, w2)
+
+                if rgb_image is None:
+                    continue
+
                 rgb_image.info['duration'] = duration
 
                 # Draw a crosshair
@@ -831,6 +843,10 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, (w1+w2)/2, w2)
+
+                if rgb_image is None:
+                    continue
+
                 rgb_image.info['duration'] = duration
 
                 # Draw a crosshair
