@@ -732,14 +732,15 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             for i in range(len(w1_images)):
                 w1_bucket = w1_images[i][0]
                 w1 = w1_bucket.data
+
+                if np.all(w1 == 0):
+                    continue
+
                 year_obs = w1_bucket.year_obs
                 wcs = w1_bucket.wcs
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, w1, w1)
-
-                if rgb_image is None:
-                    continue
 
                 rgb_image.info['duration'] = duration
 
@@ -785,14 +786,15 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             for i in range(len(w2_images)):
                 w2_bucket = w2_images[i][0]
                 w2 = w2_bucket.data
+
+                if np.all(w2 == 0):
+                    continue
+
                 year_obs = w2_bucket.year_obs
                 wcs = w2_bucket.wcs
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w2, w2, w2)
-
-                if rgb_image is None:
-                    continue
 
                 rgb_image.info['duration'] = duration
 
@@ -839,13 +841,14 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 w2_bucket = w2_images[i][0]
                 w1 = w1_bucket.data
                 w2 = w2_bucket.data
+
+                if np.all(w1 == 0) or np.all(w2 == 0):
+                    continue
+
                 year_obs = w1_bucket.year_obs
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, (w1+w2)/2, w2)
-
-                if rgb_image is None:
-                    continue
 
                 rgb_image.info['duration'] = duration
 
