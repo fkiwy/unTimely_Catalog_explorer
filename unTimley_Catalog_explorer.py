@@ -15,6 +15,7 @@ from astropy.visualization import make_lupton_rgb
 from astropy.nddata import Cutout2D
 from astropy.time import Time
 from astropy.utils.data import download_file
+# from astropy.wcs import WCS
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from reproject.mosaicking import find_optimal_celestial_wcs
@@ -49,7 +50,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             wcs, shape = find_optimal_celestial_wcs([hdu], frame='icrs')
             data, _ = reproject_interp(hdu, wcs, shape_out=shape)
             position = SkyCoord(ra*u.deg, dec*u.deg)
-            cutout = Cutout2D(data, position, img_size*u.arcsec, wcs=wcs, mode='partial')
+            cutout = Cutout2D(data, position, box_size*u.arcsec, wcs=wcs, mode='partial')
             data = cutout.data
             wcs = cutout.wcs
             x, y = wcs.world_to_pixel(position)
@@ -124,7 +125,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
     def get_neowise_image(ra, dec, epoch, band, size):
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
-        download_url = download_url.format(ra=ra, dec=dec, size=round(size/pixel_scale), band=band, epoch=epoch)
+        download_url = download_url.format(ra=ra, dec=dec, size=size, band=band, epoch=epoch)
         try:
             return fits.open(download_file(download_url, cache=cache, show_progress=show_progress, timeout=timeout))
         except Exception:
@@ -160,34 +161,49 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         return 22.5 - 2.5 * math.log10(flux)
 
     def box_contains_target(box_center_ra, box_center_dec, target_ra, target_dec, box_size):
-        delta_ra = abs(box_center_ra - target_ra) * math.cos(box_center_dec)
-        if 5 < delta_ra < 355:
-            return False, 0, 0, 0, 0
+        d = 5
+        if (target_dec > d and box_center_dec < d) or (target_dec < d and box_center_dec > d):
+            return False, 0, 0
 
-        # World to pixel
         ra = math.radians(target_ra)
         dec = math.radians(target_dec)
         ra0 = math.radians(box_center_ra)
         dec0 = math.radians(box_center_dec)
+
+        delta_ra = math.degrees(abs(ra0 - ra) * math.cos(dec0))
+        if d < delta_ra < 360 - d:
+            return False, 0, 0
+
+        # World to pixel
+        box_center = box_size/2 + 0.5
         cosc = math.sin(dec0) * math.sin(dec) + math.cos(dec0) * math.cos(dec) * math.cos(ra - ra0)
         x = (math.cos(dec) * math.sin(ra - ra0)) / cosc
         y = (math.cos(dec0) * math.sin(dec) - math.sin(dec0) * math.cos(dec) * math.cos(ra - ra0)) / cosc
         scale = 3600 / pixel_scale
         x = math.degrees(x) * -scale
         y = math.degrees(y) * scale
-        x += box_size/2
-        y += box_size/2
+        x += box_center
+        y += box_center
         y = box_size - y
-        a = x
-        b = y - 0.5
         x -= 0.5
         y += 0.5
 
+        """ This is much too slow!
+        w = WCS(naxis=2)
+        w.wcs.crpix = [box_center, box_center]
+        w.wcs.crval = [box_center_ra, box_center_dec]
+        w.wcs.cunit = ["deg", "deg"]
+        w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+        w.wcs.cdelt = [-0.000763888888889, 0.000763888888889]
+        w.array_shape = [box_size, box_size]
+        x, y = w.world_to_pixel(SkyCoord(target_ra*u.deg, target_dec*u.deg))
+        """
+
         # Distance to closest edge
-        if x > box_size/2 + 0.5:
+        if x > box_center:
             x = box_size - x
 
-        if y > box_size/2 + 0.5:
+        if y > box_center:
             y = box_size - y
 
         # Check if box contains target
@@ -195,7 +211,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if np.isnan(x) or np.isnan(y) or x < 0 or y < 0:
             match = False
 
-        return match, x, y, a, b
+        return match, x, y
 
     def find_catalog_entries(file_path, file_number):
         hdul = fits.open(base_url + file_path.replace('./', ''), cache=cache, show_progress=show_progress, timeout=timeout)
@@ -218,7 +234,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             catalog_ra = row['ra']
             catalog_dec = row['dec']
 
-            match, _, _, x, y = box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, size)
+            match, _, _ = box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, img_size)
 
             if match:
                 object_number += 1
@@ -285,9 +301,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 ))
 
                 if band == 1:
-                    coords_w1.append((object_label, row['ra'], row['dec'], x, y))
+                    coords_w1.append((object_label, row['ra'], row['dec']))
                 else:
-                    coords_w2.append((object_label, row['ra'], row['dec'], x, y))
+                    coords_w2.append((object_label, row['ra'], row['dec']))
 
             if i > 0 and i % 10000 == 0:
                 print(str(i) + '/' + str(tot_cat_entries))
@@ -299,13 +315,14 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
     # ---------------------------------------
     # Code for search_by_coordinates function
     # ---------------------------------------
-    base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
+    # base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
+    base_url = 'http://unwise.me/data/neo7/untimely-catalog/'  # faster, no timeouts!
 
     os.chdir(directory)
 
     pixel_scale = 2.75
 
-    size = box_size / pixel_scale
+    img_size = math.ceil(box_size / pixel_scale)
 
     index_file = 'untimely_index-neo7.fits'
     if exists(index_file):
@@ -338,14 +355,14 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         # print(band, coadd_id, epoch, catalog_filename, tile_center_ra, tile_center_dec)
 
-        match, px, py, _, _ = box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
+        match, x, y = box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
 
         if match:
             if coadd_id != prev_coadd_id:
                 if tile_catalog_files:
                     file_series.append(tile_catalog_files)
                 tile_catalog_files = []
-                xy = px * py
+                xy = x * y
                 tile_catalog_files.append(xy)
 
             tile_catalog_files.append(catalog_filename)
@@ -361,7 +378,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
     file_series.sort(key=lambda x: x[0], reverse=True)
 
-    # print(file_series)
+    print(file_series)
 
     w1_overlays = []
     w2_overlays = []
@@ -441,27 +458,82 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         ra = target_ra
         dec = target_dec
-        img_size = box_size  # + pixel_scale
 
-        # Plot W1 images with corresponding overlays
+        # --------------------------------------------
+        # Create W1 images with corresponding overlays
+        # --------------------------------------------
+
+        # Collect W1 images
         images = []
+        scans = []
+        imageW1 = get_neowise_image(ra, dec, epoch=0, band=1, size=img_size)
+        if imageW1:
+            hdu = imageW1[0]
+            header = hdu.header
+            meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+            time = Time(meanmjd, scale='utc', format='mjd')
+            prev_year = time.ymdhms['year']
+            prev_month = time.ymdhms['month']
+            scan_change = False
+            print('Downloading W1 images ...')
+            print('Ascending scans for ' + str(prev_year) + ':')
 
-        for i in range(0, 17, 1):
-            try:
-                imageW1 = get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
-                hdu = imageW1[0]
-                header = hdu.header
-                meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                if get_year(meanmjd) in (2011, 2013):
-                    continue
-                images.append((hdu, get_epoch(meanmjd)))
-            except Exception:
-                print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
-                      .format(ra=ra, dec=dec, epoch=i))
-                print(traceback.format_exc())
+            for i in range(0, 100, 1):
+                try:
+                    imageW1 = get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
+                    if not imageW1:
+                        break
 
+                    hdu = imageW1[0]
+                    header = hdu.header
+                    meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+                    time = Time(meanmjd, scale='utc', format='mjd')
+                    year = time.ymdhms['year']
+                    month = time.ymdhms['month']
+                    if year in (2011, 2013):
+                        continue
+
+                    if year == prev_year:
+                        if month - prev_month > 4 and not scan_change:
+                            scan_change = True
+                            images.append(scans)
+                            scans = []
+                            print('Descending scans for ' + str(year) + ':')
+                    else:
+                        scan_change = False
+                        images.append(scans)
+                        scans = []
+                        print('Ascending scans for ' + str(year) + ':')
+
+                    scans.append((hdu, meanmjd))
+                    print('  ' + str(year) + '/' + str(month))
+
+                    prev_year = year
+                    prev_month = month
+                except Exception:
+                    print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
+                          .format(ra=ra, dec=dec, epoch=i))
+                    print(traceback.format_exc())
+
+            images.append(scans)
+
+        # Create W1 epoch images
+        epochs = []
+        for scans in images:
+            size = len(scans) + 1
+            hdu = scans[0][0]
+            header = hdu.header
+            data = hdu.data
+            mjd = scans[0][1]
+            for scan in scans:
+                data += scan[0].data
+                mjd += scan[1]
+            hdu = fits.PrimaryHDU(data=data/size, header=header)
+            epochs.append((hdu, get_epoch(mjd/size)))
+        images = epochs
+
+        # Process W1 images
         w1_images = []
-
         for i in range(min(len(images), len(w1_overlays))):
             image = images[i]
             w1, x, y, wcs = process_image_data(image[0])
@@ -470,6 +542,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             overlay_dec = [coords[2] for coords in w1_overlays[i]]
             w1_images.append(ImageBucket(w1, x, y, 'W1', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
 
+        # Plot W1 images
         img_idx = 0
         for image_bucket in w1_images:
             img_idx += 1
@@ -479,25 +552,81 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if r > 0:
             img_idx += cols - r
 
-        # Plot W2 images with corresponding overlays
+        # --------------------------------------------
+        # Create W2 images with corresponding overlays
+        # --------------------------------------------
+
+        # Collect W2 images
         images = []
+        scans = []
+        imageW2 = get_neowise_image(ra, dec, epoch=0, band=2, size=img_size)
+        if imageW2:
+            hdu = imageW2[0]
+            header = hdu.header
+            meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+            time = Time(meanmjd, scale='utc', format='mjd')
+            prev_year = time.ymdhms['year']
+            prev_month = time.ymdhms['month']
+            scan_change = False
+            print('Downloading W2 images ...')
+            print('Ascending scans for ' + str(prev_year) + ':')
 
-        for i in range(0, 17, 1):
-            try:
-                imageW2 = get_neowise_image(ra, dec, epoch=i, band=2, size=img_size)
-                hdu = imageW2[0]
-                header = hdu.header
-                meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                if get_year(meanmjd) in (2011, 2013):
-                    continue
-                images.append((hdu, get_epoch(meanmjd)))
-            except Exception:
-                print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
-                      .format(ra=ra, dec=dec, epoch=i))
-                print(traceback.format_exc())
+            for i in range(0, 100, 1):
+                try:
+                    imageW2 = get_neowise_image(ra, dec, epoch=i, band=2, size=img_size)
+                    if not imageW2:
+                        break
 
+                    hdu = imageW2[0]
+                    header = hdu.header
+                    meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+                    time = Time(meanmjd, scale='utc', format='mjd')
+                    year = time.ymdhms['year']
+                    month = time.ymdhms['month']
+                    if year in (2011, 2013):
+                        continue
+
+                    if year == prev_year:
+                        if month - prev_month > 4 and not scan_change:
+                            scan_change = True
+                            images.append(scans)
+                            scans = []
+                            print('Descending scans for ' + str(year) + ':')
+                    else:
+                        scan_change = False
+                        images.append(scans)
+                        scans = []
+                        print('Ascending scans for ' + str(year) + ':')
+
+                    scans.append((hdu, meanmjd))
+                    print('  ' + str(year) + '/' + str(month))
+
+                    prev_year = year
+                    prev_month = month
+                except Exception:
+                    print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
+                          .format(ra=ra, dec=dec, epoch=i))
+                    print(traceback.format_exc())
+
+            images.append(scans)
+
+        # Create W2 epoch images
+        epochs = []
+        for scans in images:
+            size = len(scans) + 1
+            hdu = scans[0][0]
+            header = hdu.header
+            data = hdu.data
+            mjd = scans[0][1]
+            for scan in scans:
+                data += scan[0].data
+                mjd += scan[1]
+            hdu = fits.PrimaryHDU(data=data/size, header=header)
+            epochs.append((hdu, get_epoch(mjd/size)))
+        images = epochs
+
+        # Process W2 images
         w2_images = []
-
         for i in range(min(len(images), len(w2_overlays))):
             image = images[i]
             w2, x, y, wcs = process_image_data(image[0])
@@ -506,11 +635,11 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             overlay_dec = [coords[2] for coords in w2_overlays[i]]
             w2_images.append(ImageBucket(w2, x, y, 'W2', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
 
+        # Plot W2 images
         for image_bucket in w2_images:
             img_idx += 1
             plot_image(image_bucket, img_idx)
 
-        # Save and open the result file
         filename = 'unTimely_Catalog_finder_charts_' + create_obj_name(ra, dec) + '.' + finder_charts_format
         plt.savefig(filename, dpi=600, bbox_inches='tight', format=finder_charts_format)
         plt.close()
@@ -600,6 +729,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 w1_bucket = w1_images[i][0]
                 w1 = w1_bucket.data
                 year_obs = w1_bucket.year_obs
+                wcs = w1_bucket.wcs
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, w1, w1)
@@ -617,12 +747,17 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
                 # Draw catalog overlays
                 w1_overlays = w1_images[i][1]
-                x = [coords[3] for coords in w1_overlays]
-                y = [coords[4] for coords in w1_overlays]
-                for i in range(len(x)):
-                    cx = x[i] * zoom
-                    cy = y[i] * zoom
-                    draw.arc((cx-overlay_radius, cy-overlay_radius, cx+overlay_radius, cy+overlay_radius),
+                overlay_ra = [coords[1] for coords in w1_overlays]
+                overlay_dec = [coords[2] for coords in w1_overlays]
+                for i in range(len(overlay_ra)):
+                    world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
+                    x, y = wcs.world_to_pixel(world)
+                    x += 0.5
+                    y += 0.5
+                    x *= zoom
+                    y *= zoom
+                    y = h - y
+                    draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
                              start=0, end=360, fill=green, width=stroke_width)
 
                 # Draw epoch text
@@ -643,6 +778,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 w2_bucket = w2_images[i][0]
                 w2 = w2_bucket.data
                 year_obs = w2_bucket.year_obs
+                wcs = w2_bucket.wcs
 
                 # Create RGB image
                 rgb_image = create_rgb_image(w2, w2, w2)
@@ -660,12 +796,17 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
                 # Draw catalog overlays
                 w2_overlays = w2_images[i][1]
-                x = [coords[3] for coords in w2_overlays]
-                y = [coords[4] for coords in w2_overlays]
-                for i in range(len(x)):
-                    cx = x[i] * zoom
-                    cy = y[i] * zoom
-                    draw.arc((cx-overlay_radius, cy-overlay_radius, cx+overlay_radius, cy+overlay_radius),
+                overlay_ra = [coords[1] for coords in w2_overlays]
+                overlay_dec = [coords[2] for coords in w2_overlays]
+                for i in range(len(overlay_ra)):
+                    world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
+                    x, y = wcs.world_to_pixel(world)
+                    x += 0.5
+                    y += 0.5
+                    x *= zoom
+                    y *= zoom
+                    y = h - y
+                    draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
                              start=0, end=360, fill=green, width=stroke_width)
 
                 # Draw epoch text
