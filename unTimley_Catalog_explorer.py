@@ -161,38 +161,25 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         return 22.5 - 2.5 * math.log10(flux)
 
     def box_contains_target(box_center_ra, box_center_dec, target_ra, target_dec, box_size):
-        d = 5
-        # Preliminary filtering on dec
-        if (target_dec > d and box_center_dec < d) or (target_dec < d and box_center_dec > d):
-            return False, 0, 0
-
+        # World to pixel
         ra = math.radians(target_ra)
         dec = math.radians(target_dec)
         ra0 = math.radians(box_center_ra)
         dec0 = math.radians(box_center_dec)
-
-        # Preliminary filtering on ra
-        delta_ra = ra0 - ra
-        delta_ra = 360 + delta_ra if delta_ra < 0 else delta_ra
-        delta_ra = math.degrees(delta_ra * math.cos(dec0))
-        if d < delta_ra < 360 - d:
-            return False, 0, 0
-
-        # World to pixel
-        box_center = box_size/2 + 0.5
         cosc = math.sin(dec0) * math.sin(dec) + math.cos(dec0) * math.cos(dec) * math.cos(ra - ra0)
         x = (math.cos(dec) * math.sin(ra - ra0)) / cosc
         y = (math.cos(dec0) * math.sin(dec) - math.sin(dec0) * math.cos(dec) * math.cos(ra - ra0)) / cosc
         scale = 3600 / pixel_scale
         x = math.degrees(x) * -scale
         y = math.degrees(y) * scale
+        box_center = box_size/2 + 0.5
         x += box_center
         y += box_center
         y = box_size - y
         x -= 0.5
         y += 0.5
 
-        """ This is much too slow!
+        """ Too slow!
         w = WCS(naxis=2)
         w.wcs.crpix = [box_center, box_center]
         w.wcs.crval = [box_center_ra, box_center_dec]
@@ -320,7 +307,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
     # Code for search_by_coordinates function
     # ---------------------------------------
     # base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
-    base_url = 'http://unwise.me/data/neo7/untimely-catalog/'  # faster, no timeouts!
+    base_url = 'http://unwise.me/data/neo7/untimely-catalog/'  # faster, less timeouts!
 
     os.chdir(directory)
 
