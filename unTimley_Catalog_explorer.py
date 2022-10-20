@@ -881,7 +881,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         mask = phot_table['band'] == 1
         phot_table_w1 = phot_table[mask]
 
-        # Get W1 photometry
+        # Get W2 photometry
         mask = phot_table['band'] == 2
         phot_table_w2 = phot_table[mask]
 
