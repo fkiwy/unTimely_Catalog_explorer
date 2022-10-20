@@ -30,7 +30,7 @@ MERGE_SCAN = 2
 def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=False, overlays=False, overlay_color='green', overlay_labels=False,
                           overlay_label_color='red', neowise_contrast=3, show_result_table_in_browser=True, save_result_table=False, result_table_format='ascii',
                           result_table_extension='dat', open_finder_charts=False, finder_charts_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
-                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300):
+                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, catalog_base_url=None):
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None):
@@ -110,12 +110,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             print('A problem occurred while plotting an image for object ra={ra}, dec={dec}, band={band}'.format(ra=ra, dec=dec, band=band))
             print(traceback.format_exc())
 
-    def create_lupton_rgb(data):
-        vmin, vmax = get_min_max(data)
-        stretch = 1 if vmax-vmin == 0 else vmax-vmin
-        return make_lupton_rgb(data, data, data, minimum=vmin, stretch=stretch, Q=0)
-
-    def get_min_max(data, lo=5, hi=95):
+    def get_min_max(data, lo=neowise_contrast, hi=100-neowise_contrast):
         med = np.nanmedian(data)
         mad = np.nanmedian(abs(data - med))
         dev = np.nanpercentile(data, hi) - np.nanpercentile(data, lo)
@@ -161,6 +156,13 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         return 22.5 - 2.5 * math.log10(flux)
 
     def box_contains_target(box_center_ra, box_center_dec, target_ra, target_dec, box_size):
+        # Pre-filtering on ra and dec to avoid cases not well handled by the world to pixel solution
+        d = 1  # Tile size in degrees: 4048 * 2.75 / 3600 = 1.564 deg (1.564 / 2 = 0.782 ~ 1 deg)
+        if abs(box_center_dec - target_dec) > d:
+            return False, 0, 0
+        if -d < target_dec < d and d < abs(box_center_ra - target_ra) < 360 - d:
+            return False, 0, 0
+
         # World to pixel
         ra = math.radians(target_ra)
         dec = math.radians(target_dec)
@@ -172,16 +174,13 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         scale = 3600 / pixel_scale
         x = math.degrees(x) * -scale
         y = math.degrees(y) * scale
-        box_center = box_size/2 + 0.5
-        x += box_center
-        y += box_center
+        x += box_size/2
+        y += box_size/2
         y = box_size - y
-        x -= 0.5
-        y += 0.5
 
         """ Too slow!
         w = WCS(naxis=2)
-        w.wcs.crpix = [box_center, box_center]
+        w.wcs.crpix = [box_size/2, box_size/2]
         w.wcs.crval = [box_center_ra, box_center_dec]
         w.wcs.cunit = ['deg', 'deg']
         w.wcs.ctype = ['RA---TAN', 'DEC--TAN']
@@ -191,10 +190,10 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         """
 
         # Distance to closest edge
-        if x > box_center:
+        if x > box_size/2:
             x = box_size - x
 
-        if y > box_center:
+        if y > box_size/2:
             y = box_size - y
 
         # Check if box contains target
@@ -205,7 +204,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         return match, x, y
 
     def find_catalog_entries(file_path, file_number):
-        hdul = fits.open(base_url + file_path.replace('./', ''), cache=cache, show_progress=show_progress, timeout=timeout)
+        hdul = fits.open(catalog_base_url + file_path.replace('./', ''), cache=cache, show_progress=show_progress, timeout=timeout)
 
         data = hdul[1].data
         hdul.close()
@@ -306,20 +305,21 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
     # ---------------------------------------
     # Code for search_by_coordinates function
     # ---------------------------------------
-    # base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
-    base_url = 'http://unwise.me/data/neo7/untimely-catalog/'  # faster, less timeouts!
+    if catalog_base_url is None:
+        catalog_base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
 
     os.chdir(directory)
 
     pixel_scale = 2.75
 
-    img_size = math.ceil(box_size / pixel_scale)
+    # img_size = math.ceil(box_size / pixel_scale)
+    img_size = int(round(box_size / pixel_scale, 0))
 
     index_file = 'untimely_index-neo7.fits'
     if exists(index_file):
         hdul = fits.open(index_file)
     else:
-        hdul = fits.open(base_url + index_file + '.gz', cache=cache, show_progress=show_progress, timeout=timeout)
+        hdul = fits.open(catalog_base_url + index_file + '.gz', cache=cache, show_progress=show_progress, timeout=timeout)
         hdul.writeto(index_file)
 
     data = hdul[1].data
