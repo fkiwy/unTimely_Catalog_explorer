@@ -29,8 +29,8 @@ MERGE_SCAN = 2
 
 def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=False, overlays=False, overlay_color='green', overlay_labels=False,
                           overlay_label_color='red', neowise_contrast=3, show_result_table_in_browser=True, save_result_table=False, result_table_format='ascii',
-                          result_table_extension='dat', open_finder_charts=False, finder_charts_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
-                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, catalog_base_url=None):
+                          result_table_extension='dat', open_plots=False, plots_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
+                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, light_curves=False, photometry_radius=5, catalog_base_url=None):
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None):
@@ -142,6 +142,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         ra_str = str(ra)
         dec_str = str(dec) if dec < 0 else '+' + str(dec)
         return ra_str + dec_str
+
+    def create_j_designation(ra, dec):
+        return 'J' + SkyCoord(ra*u.degree, dec*u.degree).to_string('hmsdms', sep='', precision=2).replace(" ", "")
 
     def start_file(filename):
         if sys.platform == 'win32':
@@ -631,11 +634,11 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             img_idx += 1
             plot_image(image_bucket, img_idx)
 
-        filename = 'unTimely_Catalog_finder_charts_' + create_obj_name(ra, dec) + '.' + finder_charts_format
-        plt.savefig(filename, dpi=600, bbox_inches='tight', format=finder_charts_format)
+        filename = 'unTimely_Catalog_finder_charts_' + create_obj_name(ra, dec) + '.' + plots_format
+        plt.savefig(filename, dpi=600, bbox_inches='tight', format=plots_format)
         plt.close()
 
-        if open_finder_charts:
+        if open_plots:
             start_file(filename)
 
         if animated_gif:
@@ -764,7 +767,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             filename = 'Animated_time_series_w1_' + create_obj_name(ra, dec) + '.gif'
             images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
 
-            if open_finder_charts:
+            if open_plots:
                 start_file(filename)
 
             # Create animated GIF - W2 with overlays
@@ -818,7 +821,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             filename = 'Animated_time_series_w2_' + create_obj_name(ra, dec) + '.gif'
             images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
 
-            if open_finder_charts:
+            if open_plots:
                 start_file(filename)
 
             # Create animated GIF - W1+W2 without overlays
@@ -857,5 +860,61 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             filename = 'Animated_time_series_' + create_obj_name(ra, dec) + '.gif'
             images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
 
-            if open_finder_charts:
+            if open_plots:
                 start_file(filename)
+
+    # ---------------------------
+    # Create W1 & w2 light curves
+    # ---------------------------
+    if light_curves:
+        ra = target_ra
+        dec = target_dec
+
+        # ----- Prepare W1 photometry ----- #
+        # Filter by band
+        mask = result_table['band'] == 1
+        phot_table_w1 = result_table[mask]
+
+        # Filter by target distance
+        mask = phot_table_w1['target_dist'] <= photometry_radius
+        phot_table_w1 = phot_table_w1[mask]
+
+        # Specify mjd unit
+        phot_table_w1['MJDMEAN'].unit = 'd'
+
+        # ----- Prepare W2 photometry ----- #
+        # Filter by band
+        mask = result_table['band'] == 2
+        phot_table_w2 = result_table[mask]
+
+        # Filter by target distance
+        mask = phot_table_w2['target_dist'] <= photometry_radius
+        phot_table_w2 = phot_table_w2[mask]
+
+        # Specify mjd unit
+        phot_table_w2['MJDMEAN'].unit = 'd'
+
+        # ----- Plot light curves ----- #
+        x1 = Time(phot_table_w1['MJDMEAN'], format='mjd').jyear
+        y1 = phot_table_w1['mag']
+        x2 = Time(phot_table_w2['MJDMEAN'], format='mjd').jyear
+        y2 = phot_table_w2['mag']
+        plt.figure(figsize=(8, 4))
+        plt.title(create_j_designation(ra, dec))
+        plt.plot(x1, y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
+        plt.plot(x2, y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
+        plt.xticks(range(2010, 2021, 1))
+        plt.xlabel('Year')
+        plt.ylabel('Magnitude (mag)')
+        plt.legend(loc='best')
+        plt.gca().invert_yaxis()
+        plt.grid(color='grey', alpha=0.5, linestyle='-.', linewidth=0.2, axis='both')
+
+        # Save light curves plot
+        filename = 'unTimely_Catalog_light_curves_' + create_obj_name(ra, dec) + '.' + plots_format
+        plt.savefig(filename, dpi=600, bbox_inches='tight', format=plots_format)
+        plt.close()
+
+        # Open saved file
+        if open_plots:
+            start_file(filename)
