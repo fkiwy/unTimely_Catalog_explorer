@@ -870,31 +870,22 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         ra = target_ra
         dec = target_dec
 
-        # ----- Prepare W1 photometry ----- #
-        # Filter by band
-        mask = result_table['band'] == 1
-        phot_table_w1 = result_table[mask]
-
         # Filter by target distance
-        mask = phot_table_w1['target_dist'] <= photometry_radius
-        phot_table_w1 = phot_table_w1[mask]
+        mask = result_table['target_dist'] <= photometry_radius
+        phot_table = result_table[mask]
 
         # Specify mjd unit
-        phot_table_w1['MJDMEAN'].unit = 'd'
+        phot_table['MJDMEAN'].unit = 'd'
 
-        # ----- Prepare W2 photometry ----- #
-        # Filter by band
-        mask = result_table['band'] == 2
-        phot_table_w2 = result_table[mask]
+        # Get W1 photometry
+        mask = phot_table['band'] == 1
+        phot_table_w1 = phot_table[mask]
 
-        # Filter by target distance
-        mask = phot_table_w2['target_dist'] <= photometry_radius
-        phot_table_w2 = phot_table_w2[mask]
+        # Get W1 photometry
+        mask = phot_table['band'] == 2
+        phot_table_w2 = phot_table[mask]
 
-        # Specify mjd unit
-        phot_table_w2['MJDMEAN'].unit = 'd'
-
-        # ----- Plot light curves ----- #
+        # Plot light curves
         x1 = Time(phot_table_w1['MJDMEAN'], format='mjd').jyear
         y1 = phot_table_w1['mag']
         x2 = Time(phot_table_w2['MJDMEAN'], format='mjd').jyear
