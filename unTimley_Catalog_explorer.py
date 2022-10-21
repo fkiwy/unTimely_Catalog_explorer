@@ -412,15 +412,55 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             'primary',
             'flags_unwise',
             'flags_info',
-            'EPOCH',
-            'FORWARD',
-            'MJDMIN',
-            'MJDMAX',
-            'MJDMEAN',
+            'epoch',
+            'forward',
+            'mjdmin',
+            'mjdmax',
+            'mjdmean',
             'mag',
             'dmag'
         ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
-                  'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f')
+                  'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f'),
+            units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
+                   '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
+                   'mag', 'mag'),
+            descriptions=('Unique object label for a specific result set to retrieve the corresponding source on the finder charts',
+                          'Angular distance to the target coordinates',
+                          'x coordinate',
+                          'y coordinate',
+                          'Vega flux',
+                          'x uncertainty',
+                          'y uncertainty',
+                          'formal flux uncertainty',
+                          'PSF-weighted fraction of good pixels',
+                          'PSF-weighted average chi2',
+                          'PSF-weighted fraction of flux from this source',
+                          'FWHM of PSF at source location',
+                          'local-background-subtracted flux',
+                          'formal fluxlbs uncertainty',
+                          'SExtractor-like source size parameter',
+                          'uncertainty in spread_model',
+                          'flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue',
+                          'x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue',
+                          'y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue',
+                          'residual sky at source location',
+                          'R.A.',
+                          'decl.',
+                          'unWISE/AllWISE coadd_id of source',
+                          '1 for W1, 2 for W2',
+                          'detection ID, unique in catalog',
+                          'number of images in coadd at source',
+                          'source located in primary region of coadd',
+                          'unWISE flags at source location',
+                          'additional flags at source location',
+                          'unWISE epoch number',
+                          "boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit",
+                          'MJD value of earliest contributing exposure',
+                          'MJD value of latest contributing exposure',
+                          'mean of MJDMIN and MJDMAX',
+                          'Vega magnitude given by 22.5-2.5log(flux)',
+                          'magnitude uncertainty'
+                          )
         )
 
         for i in range(len(catalog_files)):
@@ -895,9 +935,6 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         mask = result_table['target_dist'] <= photometry_radius
         phot_table = result_table[mask]
 
-        # Specify mjd unit
-        phot_table['MJDMEAN'].unit = 'd'
-
         # Get W1 photometry
         mask = phot_table['band'] == 1
         phot_table_w1 = phot_table[mask]
@@ -907,9 +944,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         phot_table_w2 = phot_table[mask]
 
         # Plot light curves
-        x1 = Time(phot_table_w1['MJDMEAN'], format='mjd').jyear
+        x1 = Time(phot_table_w1['mjdmean'], format='mjd').jyear
         y1 = phot_table_w1['mag']
-        x2 = Time(phot_table_w2['MJDMEAN'], format='mjd').jyear
+        x2 = Time(phot_table_w2['mjdmean'], format='mjd').jyear
         y2 = phot_table_w2['mag']
         plt.figure(figsize=(8, 4))
         plt.title(create_j_designation(ra, dec))
