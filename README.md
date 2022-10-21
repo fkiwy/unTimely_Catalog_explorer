@@ -30,4 +30,5 @@ ucx.create_ligh_curves(photometry_radius=2, open_file=None, file_format=None)
 ucx.create_image_blinks(blink_duration=300, display_blinks=False, scan_dir_mode=ucx.SEPARATE_SCAN, neowise_contrast=None)
 ```
 
+### References
 <a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", <i>arXiv e-prints</i>, 2022.
