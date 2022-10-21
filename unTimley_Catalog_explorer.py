@@ -442,6 +442,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if show_result_table_in_browser:
             result_table.show_in_browser(jsviewer=True)
 
+    # ----------------------------
+    # Create W1 & W2 finder charts
+    # ----------------------------
     if finder_charts:
         # Prepare for plotting the unWISE images
         fig = plt.figure()
@@ -454,10 +457,6 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
         ra = target_ra
         dec = target_dec
-
-        # --------------------------------------------
-        # Create W1 images with corresponding overlays
-        # --------------------------------------------
 
         # Collect W1 images
         images = []
@@ -548,10 +547,6 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if r > 0:
             img_idx += cols - r
 
-        # --------------------------------------------
-        # Create W2 images with corresponding overlays
-        # --------------------------------------------
-
         # Collect W2 images
         images = []
         scans = []
@@ -636,6 +631,28 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
             img_idx += 1
             plot_image(image_bucket, img_idx)
 
+        # Info text
+        coords = SkyCoord(ra*u.deg, dec*u.deg)
+        info_idx = math.ceil(img_idx / cols) * cols + 1
+        fontsize = 2.0
+        ax = fig.add_subplot(rows, cols, info_idx)
+        ax.text(0.05, 0.70, r'$\alpha$ = ' + str(round(coords.ra.value, 6)), fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0.05, 0.55, r'$\delta$ = ' + str(round(coords.dec.value, 6)), fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0.05, 0.40, '$l$ = ' + str(round(coords.galactic.l.value, 6)), fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0.05, 0.25, '$b$ = ' + str(round(coords.galactic.b.value, 6)), fontsize=fontsize, transform=ax.transAxes)
+        ax.axis('off')
+
+        # Info text cont'd
+        hmsdms = coords.to_string('hmsdms', sep=':', precision=2)
+        hms = hmsdms[0:11]
+        dms = hmsdms[12:24] if dec < 0 else hmsdms[13:24]
+        ax = fig.add_subplot(rows, cols, info_idx + 1)
+        ax.text(0, 0.72, '(' + hms + ')', fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0, 0.57, '(' + dms + ')', fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0, 0.42, 'Size = ' + str(int(box_size)) + ' arcsec', fontsize=fontsize, transform=ax.transAxes)
+        ax.text(0, 0.27, 'North up, East left', fontsize=fontsize, transform=ax.transAxes)
+        ax.axis('off')
+
         filename = 'unTimely_Catalog_finder_charts_' + create_obj_name(ra, dec) + '.' + plots_format
         plt.savefig(filename, dpi=600, bbox_inches='tight', format=plots_format)
         plt.close()
@@ -643,6 +660,9 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
         if open_plots:
             start_file(filename)
 
+        # -----------------------------
+        # Create W1 and W2 image blinks
+        # -----------------------------
         if animated_gif:
             w1_images_plus_overlays = []
             for i in range(min(len(w1_images), len(w1_overlays))):
@@ -865,7 +885,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 start_file(filename)
 
     # ---------------------------
-    # Create W1 & w2 light curves
+    # Create W1 & W2 light curves
     # ---------------------------
     if light_curves:
         ra = target_ra
