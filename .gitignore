@@ -152,4 +152,4 @@ cython_debug/
 #.idea/
 
 # Test cases
-unTimley_Catalog_explorer_tests.py
+unTimely_Catalog_tools_tests.py
