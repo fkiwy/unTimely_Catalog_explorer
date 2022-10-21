@@ -4,8 +4,6 @@
 
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
-<a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", <i>arXiv e-prints</i>, 2022.
-
 ## Usage example
 
 Most of the parameters can be omitted as they have default values (if those suit you).
@@ -31,3 +29,5 @@ ucx.create_ligh_curves(photometry_radius=2, open_file=None, file_format=None)
 
 ucx.create_image_blinks(blink_duration=300, display_blinks=False, scan_dir_mode=ucx.SEPARATE_SCAN, neowise_contrast=None)
 ```
+
+<a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", <i>arXiv e-prints</i>, 2022.
