@@ -31,4 +31,4 @@ ucx.create_image_blinks(blink_duration=300, display_blinks=False, scan_dir_mode=
 ```
 
 ### References
-<a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", <i>arXiv e-prints</i>, 2022.
+<a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", 2022. [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2209.14327)
