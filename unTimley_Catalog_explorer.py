@@ -29,8 +29,9 @@ MERGE_SCAN = 2
 
 def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=False, overlays=False, overlay_color='green', overlay_labels=False,
                           overlay_label_color='red', neowise_contrast=3, show_result_table_in_browser=True, save_result_table=False, result_table_format='ascii',
-                          result_table_extension='dat', open_plots=False, plots_format='pdf', animated_gif=False, scan_dir_mode=ALTERNATE_SCAN,
-                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, light_curves=False, photometry_radius=5, catalog_base_url=None):
+                          result_table_extension='dat', open_plots=False, plots_format='pdf', animated_gif=False, blink_duration=200, scan_dir_mode=ALTERNATE_SCAN,
+                          directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, light_curves=False, photometry_radius=5,
+                          catalog_base_url=None, catalog_index_file=None):
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None):
@@ -308,22 +309,23 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
     # ---------------------------------------
     # Code for search_by_coordinates function
     # ---------------------------------------
+    os.chdir(directory)
+
     if catalog_base_url is None:
         catalog_base_url = 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'
 
-    os.chdir(directory)
+    if catalog_index_file is None:
+        catalog_index_file = 'untimely_index-neo7.fits'
 
     pixel_scale = 2.75
 
-    # img_size = math.ceil(box_size / pixel_scale)
     img_size = int(round(box_size / pixel_scale, 0))
 
-    index_file = 'untimely_index-neo7.fits'
-    if exists(index_file):
-        hdul = fits.open(index_file)
+    if exists(catalog_index_file):
+        hdul = fits.open(catalog_index_file)
     else:
-        hdul = fits.open(catalog_base_url + index_file + '.gz', cache=cache, show_progress=show_progress, timeout=timeout)
-        hdul.writeto(index_file)
+        hdul = fits.open(catalog_base_url + catalog_index_file + '.gz', cache=cache, show_progress=show_progress, timeout=timeout)
+        hdul.writeto(catalog_index_file)
 
     data = hdul[1].data
     hdul.close()
@@ -708,7 +710,6 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
 
             # Draw settings
             zoom = 10
-            duration = 200
             stroke_width = 3
             circle_radius = 50
             point_radius = 2
@@ -732,7 +733,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, w1, w1)
 
-                rgb_image.info['duration'] = duration
+                rgb_image.info['duration'] = blink_duration
 
                 # Draw a crosshair
                 w, h = rgb_image.size
@@ -786,7 +787,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 # Create RGB image
                 rgb_image = create_rgb_image(w2, w2, w2)
 
-                rgb_image.info['duration'] = duration
+                rgb_image.info['duration'] = blink_duration
 
                 # Draw a crosshair
                 w, h = rgb_image.size
@@ -840,7 +841,7 @@ def search_by_coordinates(target_ra, target_dec, box_size=100, finder_charts=Fal
                 # Create RGB image
                 rgb_image = create_rgb_image(w1, (w1+w2)/2, w2)
 
-                rgb_image.info['duration'] = duration
+                rgb_image.info['duration'] = blink_duration
 
                 # Draw a crosshair
                 w, h = rgb_image.size
