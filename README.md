@@ -40,7 +40,7 @@ print(result_table.info)
 ucx.create_finder_charts(overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                          neowise_contrast=5, open_file=False, file_format='pdf')
 
-ucx.create_ligh_curves(photometry_radius=2, open_file=None, file_format=None)
+ucx.create_ligh_curves(photometry_radius=2, open_file=False, file_format='png')
 
 ucx.create_image_blinks(blink_duration=300, display_blinks=False, scan_dir_mode=ucx.SEPARATE_SCAN, neowise_contrast=None)
 ```

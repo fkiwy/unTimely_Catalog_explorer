@@ -841,7 +841,6 @@ class unTimelyCatalogExplorer:
         plt.plot(x1, y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
         plt.plot(x2, y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
         plt.xticks(range(2010, 2021, 1))
-        plt.yticks(np.arange(min(y1)-.5, max(y1)+.5, .2))
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
