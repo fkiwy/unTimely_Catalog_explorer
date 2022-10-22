@@ -8,6 +8,7 @@ import subprocess
 import numpy as np
 from PIL import Image, ImageOps, ImageDraw
 import matplotlib.pyplot as plt
+from matplotlib.ticker import StrMethodFormatter
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits
 from astropy.table import Table
@@ -840,10 +841,12 @@ class unTimelyCatalogExplorer:
         plt.plot(x1, y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
         plt.plot(x2, y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
         plt.xticks(range(2010, 2021, 1))
+        plt.yticks(np.arange(min(y1)-.5, max(y1)+.5, .2))
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
         plt.gca().invert_yaxis()
+        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.1f}'))
         plt.grid(color='grey', alpha=0.5, linestyle='-.', linewidth=0.2, axis='both')
 
         # Save light curves plot

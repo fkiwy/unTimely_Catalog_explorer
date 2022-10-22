@@ -5,14 +5,23 @@
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
 The tool allows to:
-- search the catalog by coordinates (box search),
-- create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays),
-- create light curves using W1 and W2 photometry of all available epochs,
-- create W1 and W2 image blinks with overplotted catalog positions in GIF format.
+- search the catalog by coordinates (box search) ```search_by_coordinates(ra, dec)```,
+- create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays) ```create_finder_charts()```,
+- create light curves using W1 and W2 photometry of all available epochs ```create_ligh_curves()```,
+- create W1 and W2 image blinks with overplotted catalog positions in GIF format ```create_image_blinks()```.
 
-## Usage example
+### Module dependencies:
+The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
 
-Most of the parameters can be omitted as they have default values (if those suit you).
+### Usage example
+
+Most of the parameters can be omitted as they have default values (see docstrings for more details).
+
+An instance of the unTimelyCatalogExplorer class has to be created first ```ucx = unTimelyCatalogExplorer()```.
+
+The ```search_by_coordinates``` method must always be called before all others.
+
+The ```create_image_blinks``` method depends on the results of the ```create_finder_charts``` method.
 
 ```
 from unTimely_Catalog_tools import unTimelyCatalogExplorer
