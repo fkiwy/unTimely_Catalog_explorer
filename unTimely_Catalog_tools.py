@@ -717,6 +717,10 @@ class unTimelyCatalogExplorer:
         mask = result_table['target_dist'] <= photometry_radius
         phot_table = result_table[mask]
 
+        if (len(phot_table) == 0):
+            print('No photometry found in specified radius (default is 5 arcsec) to create any light curves.')
+            return
+
         # Get W1 photometry
         mask = phot_table['band'] == 1
         phot_table_w1 = phot_table[mask]
