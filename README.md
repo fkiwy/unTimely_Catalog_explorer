@@ -45,5 +45,16 @@ ucx.create_ligh_curves(photometry_radius=2, open_file=False, file_format='png')
 ucx.create_image_blinks(blink_duration=300, display_blinks=False, scan_dir_mode=ucx.SEPARATE_SCAN, neowise_contrast=None)
 ```
 
+### Example output
+#### Result table:
+![Catalog search results](Example%20output/26.978383%2B23.661691/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
+#### Finder charts:
+![Finder charts](Example%20output/26.978383%2B23.661691/unTimely_Catalog_finder_charts_26.978383%2B23.661691.png)
+#### Light curves:
+![Light curves](Example%20output/26.978383%2B23.661691/unTimely_Catalog_light_curves_26.978383%2B23.661691.png)
+### Image blinks:
+![Image blinks - variable](Example%20output/26.978383%2B23.661691/Animated_time_series_w1_26.978383%2B23.661691.gif) | ![Image blinks - color](Example%20output/26.978383%2B23.661691/Animated_time_series_26.978383%2B23.661691.gif)
+![Image blinks - high PM](Example%20output/133.79476-7.245146/Animated_time_series_w2_133.79476-7.245146.gif)
+
 ### References
 <a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", 2022. [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2209.14327)
