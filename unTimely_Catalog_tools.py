@@ -37,6 +37,11 @@ class unTimelyCatalogExplorer:
         self.cache = cache
         self.show_progress = show_progress
         self.timeout = timeout
+        self.result_table = None
+        self.w1_images = None
+        self.w2_images = None
+        self.w1_overlays = None
+        self.w2_overlays = None
         self.pixel_scale = 2.75
         os.chdir(directory)
 
@@ -471,6 +476,9 @@ class unTimelyCatalogExplorer:
 
     def create_finder_charts(self, overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                              neowise_contrast=3, open_file=False, file_format='pdf'):
+        if self.w1_overlays is None and self.w2_overlays is None:
+            raise Exception('Method ``search_by_coordinates`` must be called first.')
+
         # Figure settings
         fig = plt.figure()
         fig.set_figheight(5)
@@ -693,6 +701,9 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_ligh_curves(self, photometry_radius=5, open_file=None, file_format=None):
+        if self.result_table is None:
+            raise Exception('Method ``search_by_coordinates`` must be called first.')
+
         ra = self.target_ra
         dec = self.target_dec
         result_table = self.result_table
@@ -740,6 +751,9 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_image_blinks(self, blink_duration=200, display_blinks=False, scan_dir_mode=None, neowise_contrast=None):
+        if self.w1_images is None and self.w2_images is None:
+            raise Exception('Method ``create_finder_charts`` must be called first.')
+
         ra = self.target_ra
         dec = self.target_dec
         w1_images = self.w1_images
