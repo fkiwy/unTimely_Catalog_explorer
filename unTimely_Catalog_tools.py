@@ -32,6 +32,29 @@ class unTimelyCatalogExplorer:
     def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300,
                  catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
                  catalog_index_file='untimely_index-neo7.fits'):
+        """
+        Creates an unTimelyCatalogExplorer instance with the given parameters
+
+        Parameters
+        ----------
+        directory : str, optional
+            Directory where the finder charts should be saved. The default is tempfile.gettempdir().
+        cache : bool, optional
+            Whether to cache the downloaded files. The default is True.
+        show_progress : bool, optional
+            Whether to show the file download progress. The default is True.
+        timeout : int, optional
+            Timeout for remote requests in seconds. The default is 300.
+        catalog_base_url : str, optional
+            Base URL to access the unTimely Catalog. The default is 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'.
+        catalog_index_file : str, optional
+            Catalog index file name. The default is 'untimely_index-neo7.fits'.
+
+        Returns
+        -------
+        An unTimelyCatalogExplorer instance.
+
+        """
         self.catalog_base_url = catalog_base_url
         self.catalog_index_file = catalog_index_file
         self.cache = cache
@@ -96,7 +119,7 @@ class unTimelyCatalogExplorer:
                 bbox=dict(facecolor='white', alpha=0.5, linewidth=0.1, boxstyle=BoxStyle('Square', pad=0.3)))
         ax.add_patch(Rectangle((0, 0), 1, 1, fill=False, lw=0.2, ec='black', transform=ax.transAxes))
 
-        if overlays:
+        if overlays or overlay_labels:
             ax.scatter(overlay_ra, overlay_dec, transform=ax.get_transform('icrs'), s=1.0,
                        edgecolor=overlay_color, facecolor='none', linewidths=0.2)
 
@@ -302,8 +325,34 @@ class unTimelyCatalogExplorer:
 
         return coords_w1, coords_w2
 
-    def search_by_coordinates(self, target_ra, target_dec, box_size=100, show_result_table_in_browser=True, save_result_table=False,
+    def search_by_coordinates(self, target_ra, target_dec, box_size=100, show_result_table_in_browser=False, save_result_table=True,
                               result_table_format='ascii', result_table_extension='dat'):
+        """
+        Search the catalog by coordinates (box search).
+
+        Parameters
+        ----------
+        ra : float
+            Right ascension in decimal degrees.
+        dec : float
+            Declination in decimal degrees.
+        box_size : int, optional
+            Image size in arcseconds. The default is 100.
+        show_result_table_in_browser : bool, optional
+            Whether to show the result table in your browser (columns can be sorted). The default is False.
+        save_result_table : bool, optional
+            Whether to save the result table to the directory specified in the constructor ``unTimelyCatalogExplorer(directory=)``. The default is True.
+        result_table_format : str, optional
+            Result table output format. The default is 'ascii'.
+        result_table_extension : str, optional
+            Result table file extension. The default is 'dat'.
+
+        Returns
+        -------
+        result_table : astropy.table.table.Table
+            Result table containing the catalog entries located within a field of view of the specified size at the given coordinates.
+
+        """
         self.target_ra = target_ra
         self.target_dec = target_dec
         self.box_size = box_size
@@ -476,6 +525,36 @@ class unTimelyCatalogExplorer:
 
     def create_finder_charts(self, overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                              neowise_contrast=3, open_file=False, file_format='pdf'):
+        """
+        Create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays)
+
+        Parameters
+        ----------
+        overlays : bool, optional
+            Whether to plot W1 and W2 catalog positions on the finder charts (overlays). The default is True.
+        overlay_color : str, optional
+            Overlay color. The default is 'green'.
+        overlay_labels : bool, optional
+            Whether to plot catalog entry labels on the finder charts (tied to overlay circles). The default is False.
+        overlay_label_color : str, optional
+            Label color. The default is 'red'.
+        neowise_contrast : int, optional
+            Contrast of W1 and W2 images. The default is 3.
+        open_file : bool, optional
+            Whether to open the saved finder charts automatically. The default is False.
+        file_format : str, optional
+            Output file format: pdf, png, eps, etc.. The default is 'pdf'.
+
+        Raises
+        ------
+        Exception
+            If method ``search_by_coordinates`` has not been called first.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.w1_overlays is None and self.w2_overlays is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
 
@@ -701,6 +780,28 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_ligh_curves(self, photometry_radius=5, open_file=None, file_format=None):
+        """
+        Create light curves using W1 and W2 photometry of all available epochs.
+
+        Parameters
+        ----------
+        photometry_radius : float, optional
+            Radius to search for the photometry used to create the light curves. The default is 5.
+        open_file : bool, optional
+            Whether to open the saved light curves automatically. The default is None (value specified in method ``create_finder_charts`` will be used).
+        file_format : bool, optional
+            Output file format: pdf, png, eps, etc.. The default is None (value specified in method ``create_finder_charts`` will be used).
+
+        Raises
+        ------
+        Exception
+            If method ``search_by_coordinates`` has not been called first.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.result_table is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
 
@@ -755,6 +856,33 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_image_blinks(self, blink_duration=200, display_blinks=False, scan_dir_mode=None, neowise_contrast=None):
+        """
+        Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
+
+        Parameters
+        ----------
+        blink_duration : int, optional
+            Duration each image is shown in milliseconds. The default is 200.
+        display_blinks : bool, optional
+            Whether to display the image blinks in your system's media player. The default is False.
+        scan_dir_mode : int, optional
+            Order in which the image epochs are displayed. The default is None (ALTERNATE_SCAN will be used).
+            - ALTERNATE_SCAN : epoch0asc, epoch0desc, epoch1asc, epoch1desc, ...
+            - SEPARATE_SCAN : epoch0asc, epoch1asc, ... epoch0desc, epoch1desc, ...
+            - MERGE_SCAN : epoch0asc+epoch0desc, epoch1asc+epoch1desc, ...
+        neowise_contrast : int, optional
+            Contrast of W1 and W2 images. The default is None (value specified in method ``create_finder_charts`` will be used).
+
+        Raises
+        ------
+        Exception
+            If method ``create_finder_charts`` has not been called first.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.w1_images is None and self.w2_images is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
 

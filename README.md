@@ -4,6 +4,12 @@
 
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
+The tool allows to:
+- search the catalog by coordinates (box search),
+- create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays),
+- create light curves using W1 and W2 photometry of all available epochs,
+- create W1 and W2 image blinks with overplotted catalog positions in GIF format.
+
 ## Usage example
 
 Most of the parameters can be omitted as they have default values (if those suit you).
