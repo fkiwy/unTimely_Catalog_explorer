@@ -8,7 +8,6 @@ import subprocess
 import numpy as np
 from PIL import Image, ImageOps, ImageDraw
 import matplotlib.pyplot as plt
-from matplotlib.ticker import StrMethodFormatter
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits
 from astropy.table import Table
@@ -845,7 +844,6 @@ class unTimelyCatalogExplorer:
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
         plt.gca().invert_yaxis()
-        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.1f}'))
         plt.grid(color='grey', alpha=0.5, linestyle='-.', linewidth=0.2, axis='both')
 
         # Save light curves plot
