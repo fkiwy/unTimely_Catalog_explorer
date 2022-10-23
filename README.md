@@ -10,12 +10,13 @@ The tool allows to:
 - create light curves using W1 and W2 photometry of all available epochs ```create_ligh_curves()```,
 - create W1 and W2 image blinks with overplotted catalog positions in GIF format ```create_image_blinks()```.
 
-### Module dependencies:
+## Module dependencies:
+
 The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
 
-### Usage example
+## Usage example
 
-Most of the parameters can be omitted as they have default values (see [API doc](#apidoc) for more details).
+Most of the parameters can be omitted as they have default values (see [API documentation](#apidoc) for more details).
 
 An instance of the unTimelyCatalogExplorer class has to be created first ```ucx = unTimelyCatalogExplorer()```.
 
@@ -45,18 +46,24 @@ ucx.create_ligh_curves(photometry_radius=2, yticks=None, open_file=False, file_f
 ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, scan_dir_mode=ucx.ALTERNATE_SCAN, display_blinks=False)
 ```
 
-### Example output
-#### Result table:
+## Example output
+
+### Result table:
 ![Catalog search results](Example%20output/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
-#### Finder charts:
+
+### Finder charts:
 ![Finder charts](Example%20output/unTimely_Catalog_finder_charts_26.978383%2B23.661691.png)
-#### Light curves:
+
+### Light curves:
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691.png)
+
 ### Image blinks:
 ![Image blinks - variable](Example%20output/Animated_time_series_w1_26.978383%2B23.661691.gif) | ![Image blinks - color](Example%20output/Animated_time_series_26.978383%2B23.661691.gif)
 ![Image blinks - high PM](Example%20output/Animated_time_series_w2_133.79476-7.245146.gif)
 
-## <kbd>class</kbd> <a id="apidoc">`unTimelyCatalogExplorer`</a>
+## <a id="apidoc">API documentation</a>
+
+## <kbd>class</kbd> `unTimelyCatalogExplorer`
 
 ### <kbd>constructor</kbd> `__init__`
 ```python
@@ -66,8 +73,7 @@ __init__(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeou
 ```
 Creates an unTimelyCatalogExplorer instance with the given parameters
 
-Parameters
-----------
+#### <ins>Parameters</ins>
 - directory : str, optional  
     Directory where the finder charts should be saved. The default is tempfile.gettempdir().
 - cache : bool, optional  
@@ -81,8 +87,7 @@ Parameters
 - catalog_index_file : str, optional  
     Catalog index file name. The default is 'untimely_index-neo7.fits'.
 
-Returns
--------
+#### <ins>Returns</ins>
 An unTimelyCatalogExplorer instance.
 
 ---
@@ -94,8 +99,7 @@ search_by_coordinates(target_ra, target_dec, box_size=100, show_result_table_in_
 ```
 Search the catalog by coordinates (box search).
 
-Parameters
-----------
+#### <ins>Parameters</ins>
 - ra : float  
     Right ascension in decimal degrees.
 - dec : float  
@@ -111,8 +115,7 @@ Parameters
 - result_table_extension : str, optional  
     Result table file extension. The default is 'dat'.
 
-Returns
--------
+#### <ins>Returns</ins>
 Astropy table containing the catalog entries located within a field of view of the specified size at the given coordinates.
 
 ---
@@ -124,8 +127,7 @@ create_finder_charts(overlays=True, overlay_color='green', overlay_labels=False,
 ```
 Create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays)
 
-Parameters
-----------
+#### <ins>Parameters</ins>
 - overlays : bool, optional  
     Whether to plot W1 and W2 catalog positions on the finder charts (overlays). The default is True.
 - overlay_color : str, optional  
@@ -141,12 +143,10 @@ Parameters
 - file_format : str, optional  
     Output file format: pdf, png, eps, etc.. The default is 'pdf'.
 
-Raises
-------
+#### <ins>Raises</ins>
 Exception if method ``search_by_coordinates`` has not been called first.
 
-Returns
--------
+#### <ins>Returns</ins>
 None.
 
 ---
@@ -157,8 +157,7 @@ create_ligh_curves(photometry_radius=5, yticks=None, open_file=None, file_format
 ```
 Create light curves using W1 and W2 photometry of all available epochs.
 
-Parameters
-----------
+#### <ins>Parameters</ins>
 - photometry_radius : float, optional  
     Radius to search for the photometry used to create the light curves. The default is 5.
 - yticks : tuple, optional  
@@ -168,12 +167,10 @@ Parameters
 - file_format : bool, optional  
     Output file format: pdf, png, eps, etc.. The default is None (value given by method ``create_finder_charts`` will be used).
 
-Raises
-------
+#### <ins>Raises</ins>
 Exception if method ``search_by_coordinates`` has not been called first.
 
-Returns
--------
+#### <ins>Returns</ins>
 None.
 
 ---
@@ -184,8 +181,7 @@ create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=None, scan
 ```
 Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
-Parameters
-----------
+#### <ins>Parameters</ins>
 - blink_duration : int, optional  
     Duration each image is shown in milliseconds. The default is 200.
 - image_zoom : int, optional  
@@ -200,15 +196,11 @@ Parameters
 - display_blinks : bool, optional  
     Whether to display the image blinks in your system's media player. The default is False.
 
-Raises
-------
+#### <ins>Raises</ins>
 Exception if method ``create_finder_charts`` has not been called first.
 
-Returns
--------
+#### <ins>Returns</ins>
 None.
 
----
-
-### References
+## References
 <a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", 2022. [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2209.14327)
