@@ -91,15 +91,15 @@ class unTimelyCatalogExplorer:
         x, y = wcs.world_to_pixel(position)
         return data, x, y, wcs
 
-    def create_rgb_image(self, r, g, b, neowise_contrast, zoom):
+    def create_rgb_image(self, r, g, b, image_contrast, image_zoom):
         xmax, ymax = g.shape
-        vmin, vmax = self.get_min_max(g, neowise_contrast)
-        image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((zoom*xmax, zoom*ymax), Image.NONE)
+        vmin, vmax = self.get_min_max(g, image_contrast)
+        image = Image.fromarray(make_lupton_rgb(r, g, b, minimum=vmin, stretch=vmax-vmin, Q=0)).resize((image_zoom*xmax, image_zoom*ymax), Image.NONE)
         image = image.transpose(Image.FLIP_TOP_BOTTOM)
         image = ImageOps.invert(image)
         return image
 
-    def plot_image(self, image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, neowise_contrast):
+    def plot_image(self, image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, image_contrast):
         data = image_bucket.data
         x = image_bucket.x
         y = image_bucket.y
@@ -128,13 +128,13 @@ class unTimelyCatalogExplorer:
                 ax.text(overlay_ra[i], overlay_dec[i], overlay_label[i], transform=ax.get_transform('icrs'),
                         color=overlay_label_color, size=1)
 
-        vmin, vmax = self.get_min_max(data, neowise_contrast)
+        vmin, vmax = self.get_min_max(data, image_contrast)
         ax.imshow(data, vmin=vmin, vmax=vmax, cmap='gray_r')
         ax.axis('off')
 
-    def get_min_max(self, data, neowise_contrast):
-        lo = neowise_contrast
-        hi = 100-neowise_contrast
+    def get_min_max(self, data, image_contrast):
+        lo = image_contrast
+        hi = 100-image_contrast
         med = np.nanmedian(data)
         mad = np.nanmedian(abs(data - med))
         dev = np.nanpercentile(data, hi) - np.nanpercentile(data, lo)
@@ -524,7 +524,7 @@ class unTimelyCatalogExplorer:
             return result_table
 
     def create_finder_charts(self, overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
-                             neowise_contrast=3, open_file=False, file_format='pdf'):
+                             image_contrast=3, open_file=False, file_format='pdf'):
         """
         Create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays)
 
@@ -538,7 +538,7 @@ class unTimelyCatalogExplorer:
             Whether to plot catalog entry labels on the finder charts (tied to overlay circles). The default is False.
         overlay_label_color : str, optional
             Label color. The default is 'red'.
-        neowise_contrast : int, optional
+        image_contrast : int, optional
             Contrast of W1 and W2 images. The default is 3.
         open_file : bool, optional
             Whether to open the saved finder charts automatically. The default is False.
@@ -573,7 +573,7 @@ class unTimelyCatalogExplorer:
         w1_overlays = self.w1_overlays
         w2_overlays = self.w2_overlays
 
-        self.neowise_contrast = neowise_contrast
+        self.image_contrast = image_contrast
         self.open_file = open_file
         self.file_format = file_format
 
@@ -660,7 +660,7 @@ class unTimelyCatalogExplorer:
         img_idx = 0
         for image_bucket in self.w1_images:
             img_idx += 1
-            self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, neowise_contrast)
+            self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, image_contrast)
 
         r = img_idx % cols
         if r > 0:
@@ -748,7 +748,7 @@ class unTimelyCatalogExplorer:
         # Plot W2 images
         for image_bucket in self.w2_images:
             img_idx += 1
-            self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, neowise_contrast)
+            self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, image_contrast)
 
         # Info text
         coords = SkyCoord(ra*u.deg, dec*u.deg)
@@ -779,7 +779,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_ligh_curves(self, photometry_radius=5, open_file=None, file_format=None):
+    def create_ligh_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -787,10 +787,12 @@ class unTimelyCatalogExplorer:
         ----------
         photometry_radius : float, optional
             Radius to search for the photometry used to create the light curves. The default is 5.
+        yticks : tuple, optional
+            Tuple containing y axis tick values. The default is pyplot's automatic tick allocation.
         open_file : bool, optional
-            Whether to open the saved light curves automatically. The default is None (value specified in method ``create_finder_charts`` will be used).
+            Whether to open the saved light curves automatically. The default is None (value given by method ``create_finder_charts`` will be used).
         file_format : bool, optional
-            Output file format: pdf, png, eps, etc.. The default is None (value specified in method ``create_finder_charts`` will be used).
+            Output file format: pdf, png, eps, etc.. The default is None (value given by method ``create_finder_charts`` will be used).
 
         Raises
         ------
@@ -840,6 +842,8 @@ class unTimelyCatalogExplorer:
         plt.plot(x1, y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
         plt.plot(x2, y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
         plt.xticks(range(2010, 2021, 1))
+        if yticks:
+            plt.yticks(yticks)
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
@@ -855,7 +859,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_image_blinks(self, blink_duration=200, display_blinks=False, scan_dir_mode=None, neowise_contrast=None):
+    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, scan_dir_mode=ALTERNATE_SCAN, display_blinks=False):
         """
         Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
@@ -863,15 +867,17 @@ class unTimelyCatalogExplorer:
         ----------
         blink_duration : int, optional
             Duration each image is shown in milliseconds. The default is 200.
-        display_blinks : bool, optional
-            Whether to display the image blinks in your system's media player. The default is False.
+        image_zoom : int, optional
+            Scaling factor to be applied on W1 and W2 images. The default is 10.
+        image_contrast : int, optional
+            Contrast of W1 and W2 images. The default is None (value given by method ``create_finder_charts`` will be used).
         scan_dir_mode : int, optional
-            Order in which the image epochs are displayed. The default is None (ALTERNATE_SCAN will be used).
+            Order in which the image epochs are displayed. The default is ALTERNATE_SCAN.
             - ALTERNATE_SCAN : epoch0asc, epoch0desc, epoch1asc, epoch1desc, ...
             - SEPARATE_SCAN : epoch0asc, epoch1asc, ... epoch0desc, epoch1desc, ...
             - MERGE_SCAN : epoch0asc+epoch0desc, epoch1asc+epoch1desc, ...
-        neowise_contrast : int, optional
-            Contrast of W1 and W2 images. The default is None (value specified in method ``create_finder_charts`` will be used).
+        display_blinks : bool, optional
+            Whether to display the image blinks in your system's media player. The default is False.
 
         Raises
         ------
@@ -893,11 +899,8 @@ class unTimelyCatalogExplorer:
         w1_overlays = self.w1_overlays
         w2_overlays = self.w2_overlays
 
-        if scan_dir_mode is None:
-            scan_dir_mode = self.ALTERNATE_SCAN
-
-        if neowise_contrast is None:
-            neowise_contrast = self.neowise_contrast
+        if image_contrast is None:
+            image_contrast = self.image_contrast
 
         w1_images_plus_overlays = []
         for i in range(min(len(w1_images), len(w1_overlays))):
@@ -964,7 +967,6 @@ class unTimelyCatalogExplorer:
             w2_images = w2_reordred
 
         # Draw settings
-        zoom = 10
         stroke_width = 3
         circle_radius = 50
         point_radius = 2
@@ -986,7 +988,7 @@ class unTimelyCatalogExplorer:
             wcs = w1_bucket.wcs
 
             # Create RGB image
-            rgb_image = self.create_rgb_image(w1, w1, w1, neowise_contrast, zoom)
+            rgb_image = self.create_rgb_image(w1, w1, w1, image_contrast, image_zoom)
 
             rgb_image.info['duration'] = blink_duration
 
@@ -1009,8 +1011,8 @@ class unTimelyCatalogExplorer:
                 x, y = wcs.world_to_pixel(world)
                 x += 0.5
                 y += 0.5
-                x *= zoom
-                y *= zoom
+                x *= image_zoom
+                y *= image_zoom
                 y = h - y
                 draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
                          start=0, end=360, fill=green, width=stroke_width)
@@ -1040,7 +1042,7 @@ class unTimelyCatalogExplorer:
             wcs = w2_bucket.wcs
 
             # Create RGB image
-            rgb_image = self.create_rgb_image(w2, w2, w2, neowise_contrast, zoom)
+            rgb_image = self.create_rgb_image(w2, w2, w2, image_contrast, image_zoom)
 
             rgb_image.info['duration'] = blink_duration
 
@@ -1063,8 +1065,8 @@ class unTimelyCatalogExplorer:
                 x, y = wcs.world_to_pixel(world)
                 x += 0.5
                 y += 0.5
-                x *= zoom
-                y *= zoom
+                x *= image_zoom
+                y *= image_zoom
                 y = h - y
                 draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
                          start=0, end=360, fill=green, width=stroke_width)
@@ -1094,7 +1096,7 @@ class unTimelyCatalogExplorer:
             year_obs = w1_bucket.year_obs
 
             # Create RGB image
-            rgb_image = self.create_rgb_image(w1, (w1+w2)/2, w2, neowise_contrast, zoom)
+            rgb_image = self.create_rgb_image(w1, (w1+w2)/2, w2, image_contrast, image_zoom)
 
             rgb_image.info['duration'] = blink_duration
 
