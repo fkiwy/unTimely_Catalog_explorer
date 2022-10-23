@@ -23,7 +23,7 @@ The ```search_by_coordinates``` method must always be called before all others.
 
 The ```create_image_blinks``` method depends on the results of the ```create_finder_charts``` method.
 
-```
+```python
 from unTimely_Catalog_tools import unTimelyCatalogExplorer
 import tempfile
 
