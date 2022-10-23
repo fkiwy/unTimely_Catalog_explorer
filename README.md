@@ -218,5 +218,7 @@ Exception if method ``create_finder_charts`` has not been called first.
 #### <ins>Returns</ins>
 None.
 
+---
+
 ## References
 <a id="1">[1]</a> Meisner, A. M., Caselden, D., and Schlafly, E. F., "unTimely: a Full-sky, Time-Domain unWISE Catalog", 2022. [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2209.14327)
