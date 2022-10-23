@@ -47,7 +47,7 @@ ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, sca
 
 ### Example output
 #### Result table:
-![Catalog search results](Example%20output/Timely_Catalog_search%20results_26.978383%2B23.661691.dat)
+![Catalog search results](Example%20output/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
 #### Finder charts:
 ![Finder charts](Example%20output/unTimely_Catalog_finder_charts_26.978383%2B23.661691.png)
 #### Light curves:
