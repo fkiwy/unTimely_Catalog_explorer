@@ -15,7 +15,7 @@ The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
 
 ### Usage example
 
-Most of the parameters can be omitted as they have default values (see [docstrings](#docstrings) for more details).
+Most of the parameters can be omitted as they have default values (see [API doc](#apidoc) for more details).
 
 An instance of the unTimelyCatalogExplorer class has to be created first ```ucx = unTimelyCatalogExplorer()```.
 
@@ -56,7 +56,7 @@ ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, sca
 ![Image blinks - variable](Example%20output/Animated_time_series_w1_26.978383%2B23.661691.gif) | ![Image blinks - color](Example%20output/Animated_time_series_26.978383%2B23.661691.gif)
 ![Image blinks - high PM](Example%20output/Animated_time_series_w2_133.79476-7.245146.gif)
 
-## <kbd>class</kbd> <a id="docstrings">`unTimelyCatalogExplorer`</a>
+## <kbd>class</kbd> <a id="apidoc">`unTimelyCatalogExplorer`</a>
 
 ### <kbd>constructor</kbd> `__init__`
 ```python
