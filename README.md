@@ -7,7 +7,7 @@ A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, t
 The tool allows to:
 - search the catalog by coordinates (box search) ```search_by_coordinates(ra, dec)```,
 - create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays) ```create_finder_charts()```,
-- create light curves using W1 and W2 photometry of all available epochs ```create_ligh_curves()```,
+- create light curves using W1 and W2 photometry of all available epochs ```create_light_curves()```,
 - create W1 and W2 image blinks with overplotted catalog positions in GIF format ```create_image_blinks()```.
 
 ## Module dependencies:
@@ -41,7 +41,7 @@ print(result_table.info)
 ucx.create_finder_charts(overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                          image_contrast=5, open_file=False, file_format='pdf')
 
-ucx.create_ligh_curves(photometry_radius=2, yticks=None, open_file=False, file_format='png')
+ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_format='png')
 
 ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, scan_dir_mode=ucx.ALTERNATE_SCAN, display_blinks=False)
 ```
@@ -167,9 +167,9 @@ None.
 
 ---
 
-### <kbd>method</kbd> `create_ligh_curves`
+### <kbd>method</kbd> `create_light_curves`
 ```python
-create_ligh_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None):
+create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None):
 ```
 Create light curves using W1 and W2 photometry of all available epochs.
 

@@ -779,7 +779,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_ligh_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None):
+    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
