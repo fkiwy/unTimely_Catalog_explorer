@@ -1,7 +1,8 @@
 import os
 from os.path import exists
-import math
 import sys
+import math
+import warnings
 import tempfile
 import traceback
 import subprocess
@@ -241,7 +242,7 @@ class unTimelyCatalogExplorer:
 
         print('Number of catalog entries scanned for file ' + file_path + ':')
 
-        for i in range(len(data)):
+        for i in range(tot_cat_entries):
             row = data[i]
 
             catalog_ra = row['ra']
@@ -372,11 +373,11 @@ class unTimelyCatalogExplorer:
         file_series = []
         tile_catalog_files = None
 
-        prev_coadd_id = ''
+        prev_coadd_id = data[0]['COADD_ID']
 
         print('Number of index entries scanned:')
 
-        for i in range(len(data)):
+        for i in range(tot_entries):
             row = data[i]
 
             # band = row['BAND']
@@ -560,12 +561,12 @@ class unTimelyCatalogExplorer:
 
         # Figure settings
         fig = plt.figure()
-        fig.set_figheight(5)
-        fig.set_figwidth(5)
-        plt.subplots_adjust(wspace=0, hspace=0.05, right=0.5)
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+        plt.subplots_adjust(wspace=0, hspace=0.05, right=0.315)
 
         cols = 6
-        rows = 12
+        rows = 24
 
         ra = self.target_ra
         dec = self.target_dec
@@ -579,8 +580,10 @@ class unTimelyCatalogExplorer:
 
         # Collect W1 images
         images = []
+
+        """
         scans = []
-        imageW1 = self.get_neowise_image(ra, dec, epoch=0, band=1, size=self.img_size)
+        imageW1 = self.get_neowise_image(ra, dec, epoch=0, band=1, size=img_size)
         if imageW1:
             hdu = imageW1[0]
             header = hdu.header
@@ -592,9 +595,9 @@ class unTimelyCatalogExplorer:
             print('Downloading W1 images ...')
             print('Ascending scans for ' + str(prev_year) + ':')
 
-            for i in range(0, 100, 1):
+            for i in range(0, 300, 1):
                 try:
-                    imageW1 = self.get_neowise_image(ra, dec, epoch=i, band=1, size=self.img_size)
+                    imageW1 = self.get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
                     if not imageW1:
                         break
 
@@ -645,6 +648,21 @@ class unTimelyCatalogExplorer:
             hdu = fits.PrimaryHDU(data=data/size, header=header)
             epochs.append((hdu, self.get_epoch(mjd/size)))
         images = epochs
+        """
+
+        for i in range(0, 60, 1):
+            try:
+                imageW1 = self.get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
+                if not imageW1:
+                    break
+                hdu = imageW1[0]
+                header = hdu.header
+                meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+                images.append((hdu, self.get_epoch(meanmjd)))
+            except Exception:
+                print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
+                      .format(ra=ra, dec=dec, epoch=i))
+                print(traceback.format_exc())
 
         # Process W1 images
         self.w1_images = []
@@ -659,6 +677,8 @@ class unTimelyCatalogExplorer:
         # Plot W1 images
         img_idx = 0
         for image_bucket in self.w1_images:
+            if np.all(image_bucket.data == 0):
+                continue
             img_idx += 1
             self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, image_contrast)
 
@@ -668,6 +688,8 @@ class unTimelyCatalogExplorer:
 
         # Collect W2 images
         images = []
+
+        """
         scans = []
         imageW2 = self.get_neowise_image(ra, dec, epoch=0, band=2, size=img_size)
         if imageW2:
@@ -734,6 +756,21 @@ class unTimelyCatalogExplorer:
             hdu = fits.PrimaryHDU(data=data/size, header=header)
             epochs.append((hdu, self.get_epoch(mjd/size)))
         images = epochs
+        """
+
+        for i in range(0, 60, 1):
+            try:
+                imageW2 = self.get_neowise_image(ra, dec, epoch=i, band=2, size=img_size)
+                if not imageW2:
+                    break
+                hdu = imageW2[0]
+                header = hdu.header
+                meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
+                images.append((hdu, self.get_epoch(meanmjd)))
+            except Exception:
+                print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
+                      .format(ra=ra, dec=dec, epoch=i))
+                print(traceback.format_exc())
 
         # Process W2 images
         self.w2_images = []
@@ -747,6 +784,8 @@ class unTimelyCatalogExplorer:
 
         # Plot W2 images
         for image_bucket in self.w2_images:
+            if np.all(image_bucket.data == 0):
+                continue
             img_idx += 1
             self.plot_image(image_bucket, fig, rows, cols, img_idx, overlays, overlay_color, overlay_labels, overlay_label_color, image_contrast)
 
@@ -859,7 +898,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, scan_dir_mode=ALTERNATE_SCAN, display_blinks=False):
+    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, scan_dir_mode=None, display_blinks=False):
         """
         Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
@@ -871,7 +910,7 @@ class unTimelyCatalogExplorer:
             Scaling factor to be applied on W1 and W2 images. The default is 10.
         image_contrast : int, optional
             Contrast of W1 and W2 images. The default is None (value given by method ``create_finder_charts`` will be used).
-        scan_dir_mode : int, optional
+        scan_dir_mode : This parameter is obsolete. Scan direction mode will always be ALTERNATE_SCAN.
             Order in which the image epochs are displayed. The default is ALTERNATE_SCAN.
             - ALTERNATE_SCAN : epoch0asc, epoch0desc, epoch1asc, epoch1desc, ...
             - SEPARATE_SCAN : epoch0asc, epoch1asc, ... epoch0desc, epoch1desc, ...
@@ -889,6 +928,10 @@ class unTimelyCatalogExplorer:
         None.
 
         """
+        # Parameter deprecation warnings
+        if scan_dir_mode is not None:
+            warnings.warn('Parameter ``scan_dir_mode`` is obsolete. Scan direction mode will always be ALTERNATE_SCAN.', DeprecationWarning, stacklevel=2)
+
         if self.w1_images is None and self.w2_images is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
 
@@ -913,6 +956,7 @@ class unTimelyCatalogExplorer:
         w1_images = w1_images_plus_overlays
         w2_images = w2_images_plus_overlays
 
+        """
         w1_reordred = []
         w2_reordred = []
 
@@ -965,6 +1009,7 @@ class unTimelyCatalogExplorer:
 
             w1_images = w1_reordred
             w2_images = w2_reordred
+        """
 
         # Draw settings
         stroke_width = 3
