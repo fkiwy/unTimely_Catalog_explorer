@@ -261,19 +261,22 @@ class unTimelyCatalogExplorer:
                 band = row['band']
 
                 """
-                All fluxes are in Vega nanomaggies (nMgy; Finkbeiner+ 2004AJ....128.2577F), so that the Vega magnitude of a source is given by 22.5-2.5log(flux).
-                The absolute calibration is ultimately inherited from AllWISE through the calibration of Meisner+ (2017AJ....154..161M).
-                This inheritance depends on details of the PSF normalization at large radii, which is uncertain.
-                To improve the agreement between unWISE and AllWISE fluxes, we recommend subtracting 4mmag from unWISE W1 and 32mmag from unWISE W2 fluxes.
+                From Schlafly et al. 2019:
+                    Fluxes and corresponding uncertainties are given in linear flux units, specifically, in Vega nanomaggies (nMgy; Finkbeiner et al. 2004).
+                    The corresponding Vega magnitudes are given by 22.5-2.5log10(flux).
+                    The agreement between unWISE and AllWISE magnitudes can be improved by subtracting 4 mmag and 32 mmag from W1 and W2.
                 """
                 # Calculate Vega magnitude from flux
-                mag_corr = 4 if band == 1 else 32
-                mag = self.calculate_magnitude(row['flux'] - mag_corr)
+                flux_corr = 4 if band == 1 else 32
+                flux = row['flux'] - flux_corr
+                mag = self.calculate_magnitude(flux)
                 if np.isnan(mag):
                     dmag = np.nan
                 else:
-                    dmag = self.calculate_magnitude(row['dflux'] - mag_corr)
-                    dmag = dmag/1000
+                    dflux = row['dflux']
+                    mag_upper = self.calculate_magnitude(flux - dflux)
+                    mag_lower = self.calculate_magnitude(flux + dflux)
+                    dmag = (mag_upper - mag_lower) / 2
 
                 result_table.add_row((
                     object_label,
@@ -874,12 +877,14 @@ class unTimelyCatalogExplorer:
         # Plot light curves
         x1 = Time(phot_table_w1['mjdmean'], format='mjd').jyear
         y1 = phot_table_w1['mag']
+        e_y1 = phot_table_w1['dmag']
         x2 = Time(phot_table_w2['mjdmean'], format='mjd').jyear
         y2 = phot_table_w2['mag']
+        e_y2 = phot_table_w2['dmag']
         plt.figure(figsize=(8, 4))
         plt.title(self.create_j_designation(ra, dec))
-        plt.plot(x1, y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
-        plt.plot(x2, y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
+        plt.errorbar(x1, y1, yerr=e_y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
+        plt.errorbar(x2, y2, yerr=e_y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
         plt.xticks(range(2010, 2021, 1))
         if yticks:
             plt.yticks(yticks)
