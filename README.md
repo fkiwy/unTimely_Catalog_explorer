@@ -43,7 +43,7 @@ ucx.create_finder_charts(overlays=True, overlay_color='green', overlay_labels=Fa
 
 ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_format='png')
 
-ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, display_blinks=False)
+ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, separate_scan_dir=False, display_blinks=False)
 ```
 
 ## Example output
@@ -193,7 +193,7 @@ None.
 
 ### <kbd>method</kbd> `create_image_blinks`
 ```python
-create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=None, scan_dir_mode=None, display_blinks=False):
+create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=None, separate_scan_dir=False, display_blinks=False):
 ```
 Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
@@ -204,11 +204,8 @@ Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
     Scaling factor to be applied on W1 and W2 images. The default is 10.
 - image_contrast : int, optional  
     Contrast of W1 and W2 images. The default is None (value given by method ``create_finder_charts`` will be used).
-- scan_dir_mode : This parameter is obsolete. Scan direction mode will always be ALTERNATE_SCAN.  
-    Order in which the image epochs are displayed. The default is ALTERNATE_SCAN.
-    - ALTERNATE_SCAN : epoch0asc, epoch0desc, epoch1asc, epoch1desc, ...
-    - SEPARATE_SCAN : epoch0asc, epoch1asc, ... epoch0desc, epoch1desc, ...
-    - MERGE_SCAN : epoch0asc+epoch0desc, epoch1asc+epoch1desc, ...
+- separate_scan_dir : bool, optional  
+    Whether to separate sky scans into forward and backward directions. The default is False.
 - display_blinks : bool, optional  
     Whether to display the image blinks in your system's media player. The default is False.
 

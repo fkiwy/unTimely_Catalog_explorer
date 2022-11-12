@@ -2,7 +2,6 @@ import os
 from os.path import exists
 import sys
 import math
-import warnings
 import tempfile
 import traceback
 import subprocess
@@ -24,11 +23,6 @@ from reproject import reproject_interp
 
 
 class unTimelyCatalogExplorer:
-
-    # Scan direction modes for image blinks
-    ALTERNATE_SCAN = 0
-    SEPARATE_SCAN = 1
-    MERGE_SCAN = 2
 
     def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300,
                  catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
@@ -70,7 +64,7 @@ class unTimelyCatalogExplorer:
         os.chdir(directory)
 
     class ImageBucket:
-        def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None):
+        def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None, forward=None):
             self.data = data
             self.x = x
             self.y = y
@@ -80,6 +74,7 @@ class unTimelyCatalogExplorer:
             self.overlay_label = overlay_label
             self.overlay_ra = overlay_ra
             self.overlay_dec = overlay_dec
+            self.forward = forward
 
     def process_image_data(self, hdu, ra, dec, box_size):
         data = hdu.data
@@ -384,7 +379,8 @@ class unTimelyCatalogExplorer:
             row = data[i]
 
             # band = row['BAND']
-            # epoch = row['EPOCH']
+            epoch = row['EPOCH']
+            forward = row['FORWARD']
             coadd_id = row['COADD_ID']
             catalog_filename = row['CATALOG_FILENAME']
             tile_center_ra = row['RA']
@@ -402,7 +398,7 @@ class unTimelyCatalogExplorer:
                     xy = x * y
                     tile_catalog_files.append(xy)
 
-                tile_catalog_files.append(catalog_filename)
+                tile_catalog_files.append((catalog_filename, epoch, forward))
 
             prev_coadd_id = coadd_id
 
@@ -504,14 +500,15 @@ class unTimelyCatalogExplorer:
                               )
             )
 
-            for i in range(len(catalog_files)):
-                if i == 0:
-                    continue
-                coords_w1, coords_w2 = self.find_catalog_entries(catalog_files[i], i, target_ra, target_dec, self.img_size, result_table)
+            for i in range(1, len(catalog_files)):
+                catalog_filename = catalog_files[i][0]
+                epoch = catalog_files[i][1]
+                forward = catalog_files[i][2]
+                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, self.img_size, result_table)
                 if len(coords_w1) > 0:
-                    self.w1_overlays.append(coords_w1)
+                    self.w1_overlays.append((coords_w1, epoch, forward))
                 if len(coords_w2) > 0:
-                    self.w2_overlays.append(coords_w2)
+                    self.w2_overlays.append((coords_w2, epoch, forward))
 
             # result_table.sort('target_dist')
             # result_table.pprint_all()
@@ -564,12 +561,12 @@ class unTimelyCatalogExplorer:
 
         # Figure settings
         fig = plt.figure()
-        fig.set_figheight(10)
-        fig.set_figwidth(10)
-        plt.subplots_adjust(wspace=0, hspace=0.05, right=0.315)
+        fig.set_figheight(15)
+        fig.set_figwidth(15)
+        plt.subplots_adjust(wspace=0, hspace=0.05, right=0.275)
 
         cols = 6
-        rows = 24
+        rows = 30
 
         ra = self.target_ra
         dec = self.target_dec
@@ -583,99 +580,33 @@ class unTimelyCatalogExplorer:
 
         # Collect W1 images
         images = []
-
-        """
-        scans = []
-        imageW1 = self.get_neowise_image(ra, dec, epoch=0, band=1, size=img_size)
-        if imageW1:
-            hdu = imageW1[0]
-            header = hdu.header
-            meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-            time = Time(meanmjd, scale='utc', format='mjd')
-            prev_year = time.ymdhms['year']
-            prev_month = time.ymdhms['month']
-            scan_change = False
-            print('Downloading W1 images ...')
-            print('Ascending scans for ' + str(prev_year) + ':')
-
-            for i in range(0, 300, 1):
-                try:
-                    imageW1 = self.get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
-                    if not imageW1:
-                        break
-
-                    hdu = imageW1[0]
-                    header = hdu.header
-                    meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                    time = Time(meanmjd, scale='utc', format='mjd')
-                    year = time.ymdhms['year']
-                    month = time.ymdhms['month']
-                    if year in (2011, 2013):
-                        continue
-
-                    if year == prev_year:
-                        if month - prev_month > 4 and not scan_change:
-                            scan_change = True
-                            images.append(scans)
-                            scans = []
-                            print('Descending scans for ' + str(year) + ':')
-                    else:
-                        scan_change = False
-                        images.append(scans)
-                        scans = []
-                        print('Ascending scans for ' + str(year) + ':')
-
-                    scans.append((hdu, meanmjd))
-                    print('  ' + str(year) + '/' + str(month))
-
-                    prev_year = year
-                    prev_month = month
-                except Exception:
-                    print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
-                          .format(ra=ra, dec=dec, epoch=i))
-                    print(traceback.format_exc())
-
-            images.append(scans)
-
-        # Create W1 epoch images
-        epochs = []
-        for scans in images:
-            size = len(scans) + 1
-            hdu = scans[0][0]
-            header = hdu.header
-            data = hdu.data
-            mjd = scans[0][1]
-            for scan in scans:
-                data += scan[0].data
-                mjd += scan[1]
-            hdu = fits.PrimaryHDU(data=data/size, header=header)
-            epochs.append((hdu, self.get_epoch(mjd/size)))
-        images = epochs
-        """
-
-        for i in range(0, 60, 1):
+        for w1_overlay in w1_overlays:
             try:
-                imageW1 = self.get_neowise_image(ra, dec, epoch=i, band=1, size=img_size)
+                coords_w1 = w1_overlay[0]
+                epoch = w1_overlay[1]
+                forward = w1_overlay[2]
+                imageW1 = self.get_neowise_image(ra, dec, epoch, 1, img_size)
                 if not imageW1:
                     break
                 hdu = imageW1[0]
                 header = hdu.header
                 meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                images.append((hdu, self.get_epoch(meanmjd)))
+                images.append((hdu, self.get_epoch(meanmjd), coords_w1, forward))
             except Exception:
                 print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=1'
-                      .format(ra=ra, dec=dec, epoch=i))
+                      .format(ra=ra, dec=dec, epoch=epoch))
                 print(traceback.format_exc())
 
         # Process W1 images
         self.w1_images = []
-        for i in range(min(len(images), len(w1_overlays))):
-            image = images[i]
+        for image in images:
+            coords_w1 = image[2]
+            forward = image[3]
             w1, x, y, wcs = self.process_image_data(image[0], ra, dec, self.box_size)
-            overlay_label = [coords[0] for coords in w1_overlays[i]]
-            overlay_ra = [coords[1] for coords in w1_overlays[i]]
-            overlay_dec = [coords[2] for coords in w1_overlays[i]]
-            self.w1_images.append(self.ImageBucket(w1, x, y, 'W1', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
+            overlay_label = [coords[0] for coords in coords_w1]
+            overlay_ra = [coords[1] for coords in coords_w1]
+            overlay_dec = [coords[2] for coords in coords_w1]
+            self.w1_images.append(self.ImageBucket(w1, x, y, 'W1', image[1], wcs, overlay_label, overlay_ra, overlay_dec, forward))
 
         # Plot W1 images
         img_idx = 0
@@ -691,99 +622,33 @@ class unTimelyCatalogExplorer:
 
         # Collect W2 images
         images = []
-
-        """
-        scans = []
-        imageW2 = self.get_neowise_image(ra, dec, epoch=0, band=2, size=img_size)
-        if imageW2:
-            hdu = imageW2[0]
-            header = hdu.header
-            meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-            time = Time(meanmjd, scale='utc', format='mjd')
-            prev_year = time.ymdhms['year']
-            prev_month = time.ymdhms['month']
-            scan_change = False
-            print('Downloading W2 images ...')
-            print('Ascending scans for ' + str(prev_year) + ':')
-
-            for i in range(0, 100, 1):
-                try:
-                    imageW2 = self.get_neowise_image(ra, dec, epoch=i, band=2, size=img_size)
-                    if not imageW2:
-                        break
-
-                    hdu = imageW2[0]
-                    header = hdu.header
-                    meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                    time = Time(meanmjd, scale='utc', format='mjd')
-                    year = time.ymdhms['year']
-                    month = time.ymdhms['month']
-                    if year in (2011, 2013):
-                        continue
-
-                    if year == prev_year:
-                        if month - prev_month > 4 and not scan_change:
-                            scan_change = True
-                            images.append(scans)
-                            scans = []
-                            print('Descending scans for ' + str(year) + ':')
-                    else:
-                        scan_change = False
-                        images.append(scans)
-                        scans = []
-                        print('Ascending scans for ' + str(year) + ':')
-
-                    scans.append((hdu, meanmjd))
-                    print('  ' + str(year) + '/' + str(month))
-
-                    prev_year = year
-                    prev_month = month
-                except Exception:
-                    print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
-                          .format(ra=ra, dec=dec, epoch=i))
-                    print(traceback.format_exc())
-
-            images.append(scans)
-
-        # Create W2 epoch images
-        epochs = []
-        for scans in images:
-            size = len(scans) + 1
-            hdu = scans[0][0]
-            header = hdu.header
-            data = hdu.data
-            mjd = scans[0][1]
-            for scan in scans:
-                data += scan[0].data
-                mjd += scan[1]
-            hdu = fits.PrimaryHDU(data=data/size, header=header)
-            epochs.append((hdu, self.get_epoch(mjd/size)))
-        images = epochs
-        """
-
-        for i in range(0, 60, 1):
+        for w2_overlay in w2_overlays:
             try:
-                imageW2 = self.get_neowise_image(ra, dec, epoch=i, band=2, size=img_size)
+                coords_w2 = w2_overlay[0]
+                epoch = w2_overlay[1]
+                forward = w2_overlay[2]
+                imageW2 = self.get_neowise_image(ra, dec, epoch, 2, img_size)
                 if not imageW2:
                     break
                 hdu = imageW2[0]
                 header = hdu.header
                 meanmjd = (header['MJDMIN']+header['MJDMAX'])/2
-                images.append((hdu, self.get_epoch(meanmjd)))
+                images.append((hdu, self.get_epoch(meanmjd), coords_w2, forward))
             except Exception:
                 print('A problem occurred while creating WISE time series for object ra={ra}, dec={dec}, epoch={epoch}, band=2'
-                      .format(ra=ra, dec=dec, epoch=i))
+                      .format(ra=ra, dec=dec, epoch=epoch))
                 print(traceback.format_exc())
 
         # Process W2 images
         self.w2_images = []
-        for i in range(min(len(images), len(w2_overlays))):
-            image = images[i]
+        for image in images:
+            coords_w2 = image[2]
+            forward = image[3]
             w2, x, y, wcs = self.process_image_data(image[0], ra, dec, self.box_size)
-            overlay_label = [coords[0] for coords in w2_overlays[i]]
-            overlay_ra = [coords[1] for coords in w2_overlays[i]]
-            overlay_dec = [coords[2] for coords in w2_overlays[i]]
-            self.w2_images.append(self.ImageBucket(w2, x, y, 'W2', image[1], wcs, overlay_label, overlay_ra, overlay_dec))
+            overlay_label = [coords[0] for coords in coords_w2]
+            overlay_ra = [coords[1] for coords in coords_w2]
+            overlay_dec = [coords[2] for coords in coords_w2]
+            self.w2_images.append(self.ImageBucket(w2, x, y, 'W2', image[1], wcs, overlay_label, overlay_ra, overlay_dec, forward))
 
         # Plot W2 images
         for image_bucket in self.w2_images:
@@ -903,7 +768,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, scan_dir_mode=None, display_blinks=False):
+    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, separate_scan_dir=False, display_blinks=False):
         """
         Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
@@ -915,11 +780,8 @@ class unTimelyCatalogExplorer:
             Scaling factor to be applied on W1 and W2 images. The default is 10.
         image_contrast : int, optional
             Contrast of W1 and W2 images. The default is None (value given by method ``create_finder_charts`` will be used).
-        scan_dir_mode : This parameter is obsolete. Scan direction mode will always be ALTERNATE_SCAN.
-            Order in which the image epochs are displayed. The default is ALTERNATE_SCAN.
-            - ALTERNATE_SCAN : epoch0asc, epoch0desc, epoch1asc, epoch1desc, ...
-            - SEPARATE_SCAN : epoch0asc, epoch1asc, ... epoch0desc, epoch1desc, ...
-            - MERGE_SCAN : epoch0asc+epoch0desc, epoch1asc+epoch1desc, ...
+        separate_scan_dir : bool, optional
+            Whether to separate sky scans into forward and backward directions. The default is False.
         display_blinks : bool, optional
             Whether to display the image blinks in your system's media player. The default is False.
 
@@ -933,10 +795,6 @@ class unTimelyCatalogExplorer:
         None.
 
         """
-        # Parameter deprecation warnings
-        if scan_dir_mode is not None:
-            warnings.warn('Parameter ``scan_dir_mode`` is obsolete. Scan direction mode will always be ALTERNATE_SCAN.', DeprecationWarning, stacklevel=2)
-
         if self.w1_images is None and self.w2_images is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
 
@@ -944,77 +802,28 @@ class unTimelyCatalogExplorer:
         dec = self.target_dec
         w1_images = self.w1_images
         w2_images = self.w2_images
-        w1_overlays = self.w1_overlays
-        w2_overlays = self.w2_overlays
-
-        if image_contrast is None:
-            image_contrast = self.image_contrast
-
-        w1_images_plus_overlays = []
-        for i in range(min(len(w1_images), len(w1_overlays))):
-            w1_images_plus_overlays.append((w1_images[i], w1_overlays[i]))
-
-        w2_images_plus_overlays = []
-        for i in range(min(len(w2_images), len(w2_overlays))):
-            w2_images_plus_overlays.append((w2_images[i], w2_overlays[i]))
-
-        w1_images = w1_images_plus_overlays
-        w2_images = w2_images_plus_overlays
-
-        """
-        w1_reordred = []
-        w2_reordred = []
 
         # Separate scan directions
-        if scan_dir_mode == self.SEPARATE_SCAN:
-            for i in range(0, len(w1_images), 2):
-                w1_reordred.append(w1_images[i])
-            for i in range(1, len(w1_images), 2):
-                w1_reordred.append(w1_images[i])
+        if separate_scan_dir:
+            # Separate W1 scans
+            w1_forward = []
+            w1_backward = []
+            for w1_bucket in w1_images:
+                if (w1_bucket.forward == 1):
+                    w1_forward.append(w1_bucket)
+                else:
+                    w1_backward.append(w1_bucket)
+            w1_images = w1_backward + w1_forward
 
-            for i in range(0, len(w2_images), 2):
-                w2_reordred.append(w2_images[i])
-            for i in range(1, len(w2_images), 2):
-                w2_reordred.append(w2_images[i])
-
-            w1_images = w1_reordred
-            w2_images = w2_reordred
-
-        # Merge scan directions
-        if scan_dir_mode == self.MERGE_SCAN:
-            for i in range(0, len(w1_images), 2):
-                w1_asc = w1_images[i][0].data
-                w1_asc_y = w1_images[i][0].year_obs
-                w1_asc_o = w1_images[i][1]
-                try:
-                    w1_des = w1_images[i+1][0].data
-                    w1_des_o = w1_images[i+1][1]
-                except IndexError:
-                    w1_des = w1_asc
-                    w1_des_o = w1_asc_o
-                w1_images[i][0].data = (w1_asc+w1_des)/2
-                w1_images[i][0].year_obs = w1_asc_y[0:4]
-                w1_asc_o.extend(w1_des_o)
-                w1_reordred.append(w1_images[i])
-
-            for i in range(0, len(w2_images), 2):
-                w2_asc = w2_images[i][0].data
-                w2_asc_y = w2_images[i][0].year_obs
-                w2_asc_o = w2_images[i][1]
-                try:
-                    w2_des = w2_images[i+1][0].data
-                    w2_des_o = w2_images[i+1][1]
-                except IndexError:
-                    w2_des = w2_asc
-                    w2_des_o = w2_asc_o
-                w2_images[i][0].data = (w2_asc+w2_des)/2
-                w2_images[i][0].year_obs = w2_asc_y[0:4]
-                w2_asc_o.extend(w2_des_o)
-                w2_reordred.append(w2_images[i])
-
-            w1_images = w1_reordred
-            w2_images = w2_reordred
-        """
+            # Separate W2 scans
+            w2_forward = []
+            w2_backward = []
+            for w2_bucket in w2_images:
+                if (w2_bucket.forward == 1):
+                    w2_forward.append(w2_bucket)
+                else:
+                    w2_backward.append(w2_bucket)
+            w2_images = w2_backward + w2_forward
 
         # Draw settings
         stroke_width = 3
@@ -1027,8 +836,7 @@ class unTimelyCatalogExplorer:
         # Create animated GIF - W1 with overlays
         images = []
 
-        for i in range(len(w1_images)):
-            w1_bucket = w1_images[i][0]
+        for w1_bucket in w1_images:
             w1 = w1_bucket.data
 
             if np.all(w1 == 0):
@@ -1053,9 +861,8 @@ class unTimelyCatalogExplorer:
                      start=0, end=360, fill=red, width=stroke_width)
 
             # Draw catalog overlays
-            w1_overlays = w1_images[i][1]
-            overlay_ra = [coords[1] for coords in w1_overlays]
-            overlay_dec = [coords[2] for coords in w1_overlays]
+            overlay_ra = w1_bucket.overlay_ra
+            overlay_dec = w1_bucket.overlay_dec
             for i in range(len(overlay_ra)):
                 world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
                 x, y = wcs.world_to_pixel(world)
@@ -1081,8 +888,7 @@ class unTimelyCatalogExplorer:
         # Create animated GIF - W2 with overlays
         images = []
 
-        for i in range(len(w2_images)):
-            w2_bucket = w2_images[i][0]
+        for w2_bucket in w2_images:
             w2 = w2_bucket.data
 
             if np.all(w2 == 0):
@@ -1107,9 +913,8 @@ class unTimelyCatalogExplorer:
                      start=0, end=360, fill=red, width=stroke_width)
 
             # Draw catalog overlays
-            w2_overlays = w2_images[i][1]
-            overlay_ra = [coords[1] for coords in w2_overlays]
-            overlay_dec = [coords[2] for coords in w2_overlays]
+            overlay_ra = w2_bucket.overlay_ra
+            overlay_dec = w2_bucket.overlay_dec
             for i in range(len(overlay_ra)):
                 world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
                 x, y = wcs.world_to_pixel(world)
@@ -1134,9 +939,9 @@ class unTimelyCatalogExplorer:
 
         # Create animated GIF - W1+W2 without overlays
         images = []
-        for i in range(len(w1_images)):
-            w1_bucket = w1_images[i][0]
-            w2_bucket = w2_images[i][0]
+        for i in range(min(len(w1_images), len(w2_images))):
+            w1_bucket = w1_images[i]
+            w2_bucket = w2_images[i]
             w1 = w1_bucket.data
             w2 = w2_bucket.data
 
