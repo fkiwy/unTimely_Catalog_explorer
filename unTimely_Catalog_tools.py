@@ -660,7 +660,7 @@ class unTimelyCatalogExplorer:
         # Info text
         coords = SkyCoord(ra*u.deg, dec*u.deg)
         info_idx = math.ceil(img_idx / cols) * cols + 1
-        fontsize = 2.2
+        fontsize = 2.6
         ax = fig.add_subplot(rows, cols, info_idx)
         ax.text(0.05, 0.70, r'$\alpha$ = ' + str(round(coords.ra.value, 6)), fontsize=fontsize, transform=ax.transAxes)
         ax.text(0.05, 0.55, r'$\delta$ = ' + str(round(coords.dec.value, 6)), fontsize=fontsize, transform=ax.transAxes)
