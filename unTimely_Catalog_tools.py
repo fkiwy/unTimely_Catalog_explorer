@@ -2,6 +2,8 @@ import os
 from os.path import exists
 import sys
 import math
+import warnings
+import requests
 import tempfile
 import traceback
 import subprocess
@@ -9,7 +11,7 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
-from astropy.io import fits
+from astropy.io import fits, ascii
 from astropy.table import Table
 from astropy.visualization import make_lupton_rgb
 from astropy.nddata import Cutout2D
@@ -55,6 +57,8 @@ class unTimelyCatalogExplorer:
         self.cache = cache
         self.show_progress = show_progress
         self.timeout = timeout
+        self.open_file = False
+        self.file_format = 'pdf'
         self.result_table = None
         self.w1_images = None
         self.w2_images = None
@@ -137,6 +141,35 @@ class unTimelyCatalogExplorer:
         vmin = med - 2.0 * mad
         vmax = med + 2.0 * dev
         return vmin, vmax
+
+    def get_wise_photometry(self, ra, dec, radius):
+        query_url = 'http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query'
+
+        payload = {
+            'catalog': 'allwise_p3as_mep',
+            'spatial': 'cone',
+            'objstr': ' '.join([str(ra), str(dec)]),
+            'radius': str(radius),
+            'radunits': 'arcsec',
+            'outfmt': '1',
+            'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd'
+        }
+        r = requests.get(query_url, params=payload)
+        allwise = ascii.read(r.text)
+
+        payload = {
+            'catalog': 'neowiser_p1bs_psd',
+            'spatial': 'cone',
+            'objstr': ' '.join([str(ra), str(dec)]),
+            'radius': str(radius),
+            'radunits': 'arcsec',
+            'outfmt': '1',
+            'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd'
+        }
+        r = requests.get(query_url, params=payload)
+        neowise = ascii.read(r.text)
+
+        return allwise, neowise
 
     def get_neowise_image(self, ra, dec, epoch, band, size):
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
@@ -228,7 +261,8 @@ class unTimelyCatalogExplorer:
         data = hdul[1].data
         hdul.close()
 
-        tot_cat_entries = len(data)
+        table = Table(data)
+        tot_cat_entries = len(table)
 
         coords_w1 = []
         coords_w2 = []
@@ -238,7 +272,7 @@ class unTimelyCatalogExplorer:
         print('Number of catalog entries scanned for file ' + file_path + ':')
 
         for i in range(tot_cat_entries):
-            row = data[i]
+            row = table[i]
 
             catalog_ra = row['ra']
             catalog_dec = row['dec']
@@ -262,8 +296,8 @@ class unTimelyCatalogExplorer:
                     The agreement between unWISE and AllWISE magnitudes can be improved by subtracting 4 mmag and 32 mmag from W1 and W2.
                 """
                 # Calculate Vega magnitude from flux
-                flux_corr = 4 if band == 1 else 32
-                flux = row['flux'] - flux_corr
+                # flux_corr = 4 if band == 1 else 32
+                flux = row['flux']  # - flux_corr
                 mag = self.calculate_magnitude(flux)
                 if np.isnan(mag):
                     dmag = np.nan
@@ -366,17 +400,18 @@ class unTimelyCatalogExplorer:
         data = hdul[1].data
         hdul.close()
 
-        tot_entries = len(data)
+        table = Table(data)
+        tot_entries = len(table)
 
         file_series = []
         tile_catalog_files = None
 
-        prev_coadd_id = data[0]['COADD_ID']
+        prev_coadd_id = table[0]['COADD_ID']
 
         print('Number of index entries scanned:')
 
         for i in range(tot_entries):
-            row = data[i]
+            row = table[i]
 
             # band = row['BAND']
             epoch = row['EPOCH']
@@ -686,7 +721,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None):
+    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -740,17 +775,48 @@ class unTimelyCatalogExplorer:
         phot_table_w2 = phot_table[mask]
 
         # Plot light curves
-        x1 = Time(phot_table_w1['mjdmean'], format='mjd').jyear
-        y1 = phot_table_w1['mag']
-        e_y1 = phot_table_w1['dmag']
-        x2 = Time(phot_table_w2['mjdmean'], format='mjd').jyear
-        y2 = phot_table_w2['mag']
-        e_y2 = phot_table_w2['dmag']
         plt.figure(figsize=(8, 4))
         plt.title(self.create_j_designation(ra, dec))
-        plt.errorbar(x1, y1, yerr=e_y1, lw=1, linestyle='--', markersize=3, marker='o', label='W1')
-        plt.errorbar(x2, y2, yerr=e_y2, lw=1, linestyle='--', markersize=3, marker='o', label='W2')
-        plt.xticks(range(2010, 2021, 1))
+
+        # Get AllWISE Multiepoch and NEOWISE-R Single Exposure (L1b) photometry
+        if overplot_l1b_phot:
+            warnings.simplefilter('ignore', category=Warning)
+
+            allwise, neowise = self.get_wise_photometry(ra, dec, photometry_radius)
+            allwise['mjd'].unit = 'd'
+            neowise['mjd'].unit = 'd'
+
+            year = Time(allwise['mjd'], format='mjd').jyear
+            allwise.add_column(year, name='year')
+            year_bin = np.trunc(year / 0.5)
+            grouped = allwise.group_by(year_bin)
+            binned = grouped.groups.aggregate(np.median)
+
+            plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=binned['w1sigmpro_ep'],
+                         lw=1, linestyle='--', markersize=3, marker='o', zorder=0, c='tab:cyan')
+            plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=binned['w2sigmpro_ep'],
+                         lw=1, linestyle='--', markersize=3, marker='o', zorder=1, c='tab:orange')
+
+            year = Time(neowise['mjd'], format='mjd').jyear
+            neowise.add_column(year, name='year')
+            year_bin = np.trunc(year / 0.5)
+            grouped = neowise.group_by(year_bin)
+            binned = grouped.groups.aggregate(np.median)
+
+            plt.errorbar(binned['year'], binned['w1mpro'], yerr=binned['w1sigmpro'],
+                         lw=1, linestyle='--', markersize=3, marker='o', label='All+NEO W1', zorder=0, c='tab:cyan')
+            plt.errorbar(binned['year'], binned['w2mpro'], yerr=binned['w2sigmpro'],
+                         lw=1, linestyle='--', markersize=3, marker='o', label='All+NEO W2', zorder=1, c='tab:orange')
+
+            plt.xticks(range(2010, 2023, 1))
+        else:
+            plt.xticks(range(2010, 2021, 1))
+
+        plt.errorbar(Time(phot_table_w1['mjdmean'], format='mjd').jyear, phot_table_w1['mag'], yerr=phot_table_w1['dmag'],
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue')
+        plt.errorbar(Time(phot_table_w2['mjdmean'], format='mjd').jyear, phot_table_w2['mag'], yerr=phot_table_w2['dmag'],
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red')
+
         if yticks:
             plt.yticks(yticks)
         plt.xlabel('Year')
