@@ -713,6 +713,10 @@ class unTimelyCatalogExplorer:
             Whether to open the saved light curves automatically. The default is None (value given by method ``create_finder_charts`` will be used).
         file_format : bool, optional
             Output file format: pdf, png, eps, etc.. The default is None (value given by method ``create_finder_charts`` will be used).
+        overplot_l1b_phot : bool, optional
+            Whether to overplot L1b photometry. The default is False.
+        bin_l1b_phot : bool, optional
+            Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
 
         Raises
         ------
@@ -759,7 +763,7 @@ class unTimelyCatalogExplorer:
         plt.title(self.create_j_designation(ra, dec))
 
         if overplot_l1b_phot:
-            # Get AllWISE Multiepoch and NEOWISE-R Single Exposure (L1b) photometry
+            # Get AllWISE multi-epoch and NEOWISE-R single exposure (L1b) photometry
             allwise, neowise = self.get_l1b_photometry(ra, dec, photometry_radius)
 
             # Add mjd unit (days)
