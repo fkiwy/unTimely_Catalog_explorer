@@ -763,38 +763,40 @@ class unTimelyCatalogExplorer:
         plt.title(self.create_j_designation(ra, dec))
 
         if overplot_l1b_phot:
-            # Get AllWISE multi-epoch and NEOWISE-R single exposure (L1b) photometry
             allwise, neowise = self.get_l1b_photometry(ra, dec, photometry_radius)
-
-            # Add mjd unit (days)
             allwise['mjd'].unit = 'd'
             neowise['mjd'].unit = 'd'
 
-            # Merge (vertically stack) relevant AllWISE and NEOWISE data
-            arr1 = np.column_stack([allwise['w1mpro_ep'], allwise['w1sigmpro_ep'], allwise['w2mpro_ep'], allwise['w2sigmpro_ep'], Time(allwise['mjd'], format='mjd').jyear])
-            arr2 = np.column_stack([neowise['w1mpro'], neowise['w1sigmpro'], neowise['w2mpro'], neowise['w2sigmpro'], Time(neowise['mjd'], format='mjd').jyear])
-            arr = np.vstack((arr1, arr2))
-
-            # Wrap merged data in an astropy table
-            l1b_phot = Table(arr, names=('w1', 'e_w1', 'w2', 'e_w2', 'year'))
-            l1b_year = l1b_phot['year']
+            allwise_year = Time(allwise['mjd'], format='mjd').jyear
+            neowise_year = Time(neowise['mjd'], format='mjd').jyear
 
             if bin_l1b_phot:
-                # Bin data by sky pass (~6 months)
-                year_bin = np.trunc(l1b_year / 0.5)
-                # Group data by year bin
-                grouped = l1b_phot.group_by(year_bin)
-                # Find median in bin
+                allwise.add_column(allwise_year, name='year')
+                year_bin = np.trunc(allwise_year / 0.5)
+                grouped = allwise.group_by(year_bin)
                 binned = grouped.groups.aggregate(np.median)
-                # Plot light curves
-                plt.errorbar(binned['year'], binned['w1'], yerr=binned['e_w1'],
+
+                plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=binned['w1sigmpro_ep'],
+                             lw=1, linestyle='--', markersize=3, marker='o', zorder=0, c='tab:cyan')
+                plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=binned['w2sigmpro_ep'],
+                             lw=1, linestyle='--', markersize=3, marker='o', zorder=1, c='tab:orange')
+
+                neowise.add_column(neowise_year, name='year')
+                year_bin = np.trunc(neowise_year / 0.5)
+                grouped = neowise.group_by(year_bin)
+                binned = grouped.groups.aggregate(np.median)
+
+                plt.errorbar(binned['year'], binned['w1mpro'], yerr=binned['w1sigmpro'],
                              lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
-                plt.errorbar(binned['year'], binned['w2'], yerr=binned['e_w2'],
+                plt.errorbar(binned['year'], binned['w2mpro'], yerr=binned['w2sigmpro'],
                              lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
             else:
-                plt.plot(l1b_year, l1b_phot['w1'], '.', label='L1b W1', zorder=0, c='tab:cyan')
-                plt.plot(l1b_year, l1b_phot['w2'], '.', label='L1b W2', zorder=1, c='tab:orange')
+                plt.plot(allwise_year, allwise['w1mpro_ep'], '.', zorder=0, c='tab:cyan')
+                plt.plot(allwise_year, allwise['w2mpro_ep'], '.', zorder=1, c='tab:orange')
+                plt.plot(neowise_year, neowise['w1mpro'], '.', label='L1b W1', zorder=0, c='tab:cyan')
+                plt.plot(neowise_year, neowise['w2mpro'], '.', label='L1b W2', zorder=1, c='tab:orange')
 
+            plt.xticks(rotation=45)
             plt.xticks(range(2010, 2023, 1))
         else:
             plt.xticks(range(2010, 2021, 1))
@@ -806,7 +808,6 @@ class unTimelyCatalogExplorer:
 
         if yticks:
             plt.yticks(yticks)
-        # plt.xticks(rotation=45)
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
