@@ -170,7 +170,7 @@ None.
 
 ### <kbd>method</kbd> `create_light_curves`
 ```python
-create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=True, bin_l1b_phot=True):
+create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False):
 ```
 Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -185,7 +185,7 @@ Create light curves using W1 and W2 photometry of all available epochs.
     Output file format: pdf, png, eps, etc.. The default is None (value given by method ``create_finder_charts`` will be used).
 - overplot_l1b_phot : bool, optional  
     Whether to overplot L1b photometry. The default is False.
-- bin_l1b_phot=True : bool, optional  
+- bin_l1b_phot : bool, optional  
     Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
 
 #### <ins>Raises</ins>
