@@ -151,7 +151,7 @@ class unTimelyCatalogExplorer:
             'radius': str(radius),
             'radunits': 'arcsec',
             'outfmt': '1',
-            'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd'
+            'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd,qi_fact,saa_sep,moon_masked'
         }
         r = requests.get(query_url, params=payload)
         allwise = ascii.read(r.text)
@@ -163,12 +163,33 @@ class unTimelyCatalogExplorer:
             'radius': str(radius),
             'radunits': 'arcsec',
             'outfmt': '1',
-            'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd'
+            'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd,qi_fact,saa_sep,moon_masked,qual_frame'
         }
         r = requests.get(query_url, params=payload)
         neowise = ascii.read(r.text)
 
+        # Apply quality constraints
+        """
+        allwise = allwise[
+            (allwise['qi_fact'] > 0.9) *
+            (allwise['saa_sep'] > 0) *
+            (allwise['moon_masked'] == '0000')
+        ]
+
+        neowise = neowise[
+            (neowise['qi_fact'] > 0.9) *
+            (neowise['saa_sep'] > 0) *
+            (neowise['moon_masked'] == '00') *
+            (neowise['qual_frame'] > 0)
+        ]
+        """
+
         return allwise, neowise
+
+    def std_error(self, data):
+        std = data.groups.aggregate(np.std)
+        bin_size = data.groups.aggregate(np.size)
+        return std / np.sqrt(bin_size)
 
     def get_neowise_image(self, ra, dec, epoch, band, size):
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
@@ -776,9 +797,9 @@ class unTimelyCatalogExplorer:
                 grouped = allwise.group_by(year_bin)
                 binned = grouped.groups.aggregate(np.median)
 
-                plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=binned['w1sigmpro_ep'],
+                plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=self.std_error(grouped['w1mpro_ep']),
                              lw=1, linestyle='--', markersize=3, marker='o', zorder=0, c='tab:cyan')
-                plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=binned['w2sigmpro_ep'],
+                plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=self.std_error(grouped['w2mpro_ep']),
                              lw=1, linestyle='--', markersize=3, marker='o', zorder=1, c='tab:orange')
 
                 neowise.add_column(neowise_year, name='year')
@@ -786,9 +807,9 @@ class unTimelyCatalogExplorer:
                 grouped = neowise.group_by(year_bin)
                 binned = grouped.groups.aggregate(np.median)
 
-                plt.errorbar(binned['year'], binned['w1mpro'], yerr=binned['w1sigmpro'],
+                plt.errorbar(binned['year'], binned['w1mpro'], yerr=self.std_error(grouped['w1mpro']),
                              lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
-                plt.errorbar(binned['year'], binned['w2mpro'], yerr=binned['w2sigmpro'],
+                plt.errorbar(binned['year'], binned['w2mpro'], yerr=self.std_error(grouped['w2mpro']),
                              lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
             else:
                 plt.plot(allwise_year, allwise['w1mpro_ep'], '.', zorder=0, c='tab:cyan')
