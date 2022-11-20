@@ -2,7 +2,6 @@ import os
 from os.path import exists
 import sys
 import math
-import warnings
 import requests
 import tempfile
 import traceback
@@ -142,7 +141,7 @@ class unTimelyCatalogExplorer:
         vmax = med + 2.0 * dev
         return vmin, vmax
 
-    def get_wise_photometry(self, ra, dec, radius):
+    def get_l1b_photometry(self, ra, dec, radius):
         query_url = 'http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query'
 
         payload = {
@@ -262,18 +261,18 @@ class unTimelyCatalogExplorer:
         hdul.close()
 
         table = Table(data)
-        tot_cat_entries = len(table)
+        target_coords = SkyCoord([target_ra*u.deg], [target_dec*u.deg])
+        catalog_coords = SkyCoord(table['ra'], table['dec'], unit='deg')
+        target_dist = target_coords.separation(catalog_coords).arcsec
+        table.add_column(target_dist, name='target_dist')
+        table.sort('target_dist')
 
         coords_w1 = []
         coords_w2 = []
 
         object_number = 0
 
-        print('Number of catalog entries scanned for file ' + file_path + ':')
-
-        for i in range(tot_cat_entries):
-            row = table[i]
-
+        for row in table:
             catalog_ra = row['ra']
             catalog_dec = row['dec']
 
@@ -282,13 +281,7 @@ class unTimelyCatalogExplorer:
             if match:
                 object_number += 1
                 object_label = str(file_number) + '.' + str(object_number)
-
-                target_coords = SkyCoord(target_ra*u.deg, target_dec*u.deg)
-                catalog_coords = SkyCoord(catalog_ra*u.deg, catalog_dec*u.deg)
-                target_dist = target_coords.separation(catalog_coords).arcsec
-
                 band = row['band']
-
                 """
                 From Schlafly et al. 2019:
                     Fluxes and corresponding uncertainties are given in linear flux units, specifically, in Vega nanomaggies (nMgy; Finkbeiner et al. 2004).
@@ -309,7 +302,7 @@ class unTimelyCatalogExplorer:
 
                 result_table.add_row((
                     object_label,
-                    target_dist,
+                    row['target_dist'],
                     row['x'],
                     row['y'],
                     row['flux'],
@@ -350,11 +343,6 @@ class unTimelyCatalogExplorer:
                     coords_w1.append((object_label, row['ra'], row['dec']))
                 else:
                     coords_w2.append((object_label, row['ra'], row['dec']))
-
-            if i > 0 and i % 10000 == 0:
-                print(str(i) + '/' + str(tot_cat_entries))
-
-        print(str(tot_cat_entries) + '/' + str(tot_cat_entries))
 
         return coords_w1, coords_w2
 
@@ -401,27 +389,21 @@ class unTimelyCatalogExplorer:
         hdul.close()
 
         table = Table(data)
-        tot_entries = len(table)
 
         file_series = []
         tile_catalog_files = None
 
         prev_coadd_id = table[0]['COADD_ID']
 
-        print('Number of index entries scanned:')
+        print('Scanning catalog index file ...')
 
-        for i in range(tot_entries):
-            row = table[i]
-
-            # band = row['BAND']
+        for row in table:
             epoch = row['EPOCH']
             forward = row['FORWARD']
             coadd_id = row['COADD_ID']
             catalog_filename = row['CATALOG_FILENAME']
             tile_center_ra = row['RA']
             tile_center_dec = row['DEC']
-
-            # print(band, coadd_id, epoch, catalog_filename, tile_center_ra, tile_center_dec)
 
             match, x, y = self.box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
 
@@ -437,16 +419,11 @@ class unTimelyCatalogExplorer:
 
             prev_coadd_id = coadd_id
 
-            if i > 0 and i % 10000 == 0:
-                print(str(i) + '/' + str(tot_entries))
-
-        print(str(tot_entries) + '/' + str(tot_entries))
-
         file_series.append(tile_catalog_files)
 
         file_series.sort(key=lambda x: x[0], reverse=True)
 
-        print(file_series)
+        # print(file_series)
 
         self.w1_overlays = []
         self.w2_overlays = []
@@ -535,18 +512,17 @@ class unTimelyCatalogExplorer:
                               )
             )
 
+            print('Scanning individual catalog files ...')
             for i in range(1, len(catalog_files)):
                 catalog_filename = catalog_files[i][0]
                 epoch = catalog_files[i][1]
                 forward = catalog_files[i][2]
+                print(catalog_filename)
                 coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, self.img_size, result_table)
                 if len(coords_w1) > 0:
                     self.w1_overlays.append((coords_w1, epoch, forward))
                 if len(coords_w2) > 0:
                     self.w2_overlays.append((coords_w2, epoch, forward))
-
-            # result_table.sort('target_dist')
-            # result_table.pprint_all()
 
             self.result_table = result_table
 
@@ -593,6 +569,8 @@ class unTimelyCatalogExplorer:
         """
         if self.w1_overlays is None and self.w2_overlays is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
+
+        print('Creating finder charts ...')
 
         # Figure settings
         fig = plt.figure()
@@ -721,7 +699,7 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False):
+    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -749,6 +727,8 @@ class unTimelyCatalogExplorer:
         if self.result_table is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
 
+        print('Creating light curves ...')
+
         ra = self.target_ra
         dec = self.target_dec
         result_table = self.result_table
@@ -774,39 +754,42 @@ class unTimelyCatalogExplorer:
         mask = phot_table['band'] == 2
         phot_table_w2 = phot_table[mask]
 
-        # Plot light curves
+        # Create plot
         plt.figure(figsize=(8, 4))
         plt.title(self.create_j_designation(ra, dec))
 
-        # Get AllWISE Multiepoch and NEOWISE-R Single Exposure (L1b) photometry
         if overplot_l1b_phot:
-            warnings.simplefilter('ignore', category=Warning)
+            # Get AllWISE Multiepoch and NEOWISE-R Single Exposure (L1b) photometry
+            allwise, neowise = self.get_l1b_photometry(ra, dec, photometry_radius)
 
-            allwise, neowise = self.get_wise_photometry(ra, dec, photometry_radius)
+            # Add mjd unit (days)
             allwise['mjd'].unit = 'd'
             neowise['mjd'].unit = 'd'
 
-            year = Time(allwise['mjd'], format='mjd').jyear
-            allwise.add_column(year, name='year')
-            year_bin = np.trunc(year / 0.5)
-            grouped = allwise.group_by(year_bin)
-            binned = grouped.groups.aggregate(np.median)
+            # Merge (vertically stack) relevant AllWISE and NEOWISE data
+            arr1 = np.column_stack([allwise['w1mpro_ep'], allwise['w1sigmpro_ep'], allwise['w2mpro_ep'], allwise['w2sigmpro_ep'], Time(allwise['mjd'], format='mjd').jyear])
+            arr2 = np.column_stack([neowise['w1mpro'], neowise['w1sigmpro'], neowise['w2mpro'], neowise['w2sigmpro'], Time(neowise['mjd'], format='mjd').jyear])
+            arr = np.vstack((arr1, arr2))
 
-            plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=binned['w1sigmpro_ep'],
-                         lw=1, linestyle='--', markersize=3, marker='o', zorder=0, c='tab:cyan')
-            plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=binned['w2sigmpro_ep'],
-                         lw=1, linestyle='--', markersize=3, marker='o', zorder=1, c='tab:orange')
+            # Wrap merged data in an astropy table
+            l1b_phot = Table(arr, names=('w1', 'e_w1', 'w2', 'e_w2', 'year'))
+            l1b_year = l1b_phot['year']
 
-            year = Time(neowise['mjd'], format='mjd').jyear
-            neowise.add_column(year, name='year')
-            year_bin = np.trunc(year / 0.5)
-            grouped = neowise.group_by(year_bin)
-            binned = grouped.groups.aggregate(np.median)
-
-            plt.errorbar(binned['year'], binned['w1mpro'], yerr=binned['w1sigmpro'],
-                         lw=1, linestyle='--', markersize=3, marker='o', label='All+NEO W1', zorder=0, c='tab:cyan')
-            plt.errorbar(binned['year'], binned['w2mpro'], yerr=binned['w2sigmpro'],
-                         lw=1, linestyle='--', markersize=3, marker='o', label='All+NEO W2', zorder=1, c='tab:orange')
+            if bin_l1b_phot:
+                # Bin data by sky pass (~6 months)
+                year_bin = np.trunc(l1b_year / 0.5)
+                # Group data by year bin
+                grouped = l1b_phot.group_by(year_bin)
+                # Find median in bin
+                binned = grouped.groups.aggregate(np.median)
+                # Plot light curves
+                plt.errorbar(binned['year'], binned['w1'], yerr=binned['e_w1'],
+                             lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
+                plt.errorbar(binned['year'], binned['w2'], yerr=binned['e_w2'],
+                             lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
+            else:
+                plt.plot(l1b_year, l1b_phot['w1'], '.', label='L1b W1', zorder=0, c='tab:cyan')
+                plt.plot(l1b_year, l1b_phot['w2'], '.', label='L1b W2', zorder=1, c='tab:orange')
 
             plt.xticks(range(2010, 2023, 1))
         else:
@@ -819,6 +802,7 @@ class unTimelyCatalogExplorer:
 
         if yticks:
             plt.yticks(yticks)
+        # plt.xticks(rotation=45)
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
         plt.legend(loc='best')
@@ -863,6 +847,8 @@ class unTimelyCatalogExplorer:
         """
         if self.w1_images is None and self.w2_images is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
+
+        print('Creating image blinks ...')
 
         ra = self.target_ra
         dec = self.target_dec

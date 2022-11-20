@@ -41,7 +41,7 @@ print(result_table.info)
 ucx.create_finder_charts(overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                          image_contrast=5, open_file=False, file_format='pdf')
 
-ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_format='png')
+ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_format='png', overplot_l1b_phot=True, bin_l1b_phot=True)
 
 ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, separate_scan_dir=False, display_blinks=False)
 ```
@@ -72,6 +72,7 @@ ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, sep
 
 ### Light curves:
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691.png)
+![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_median_L1b.png)
 
 ### Image blinks:
 ![Image blinks - variable](Example%20output/Animated_time_series_w1_26.978383%2B23.661691.gif) | ![Image blinks - color](Example%20output/Animated_time_series_26.978383%2B23.661691.gif)
@@ -169,7 +170,7 @@ None.
 
 ### <kbd>method</kbd> `create_light_curves`
 ```python
-create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None):
+create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=True, bin_l1b_phot=True):
 ```
 Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -180,8 +181,12 @@ Create light curves using W1 and W2 photometry of all available epochs.
     Tuple containing y axis tick values. The default is pyplot's automatic tick allocation.
 - open_file : bool, optional  
     Whether to open the saved light curves automatically. The default is None (value given by method ``create_finder_charts`` will be used).
-- file_format : bool, optional  
+- file_format : str, optional  
     Output file format: pdf, png, eps, etc.. The default is None (value given by method ``create_finder_charts`` will be used).
+- overplot_l1b_phot : bool, optional  
+    Whether to overplot L1b photometry. The default is False.
+- bin_l1b_phot=True : bool, optional  
+    Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
 
 #### <ins>Raises</ins>
 Exception if method ``search_by_coordinates`` has not been called first.
