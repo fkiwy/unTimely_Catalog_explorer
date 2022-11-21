@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits, ascii
 from astropy.table import Table
+from astropy.stats import sigma_clip
 from astropy.visualization import make_lupton_rgb
 from astropy.nddata import Cutout2D
 from astropy.time import Time
@@ -187,9 +188,7 @@ class unTimelyCatalogExplorer:
         return allwise, neowise
 
     def std_error(self, data):
-        std = data.groups.aggregate(np.std)
-        bin_size = data.groups.aggregate(np.size)
-        return std / np.sqrt(bin_size)
+        return np.ma.std(data) / np.ma.sqrt(len(data))
 
     def get_neowise_image(self, ra, dec, epoch, band, size):
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
@@ -792,25 +791,46 @@ class unTimelyCatalogExplorer:
             neowise_year = Time(neowise['mjd'], format='mjd').jyear
 
             if bin_l1b_phot:
+                # Set common sigma clipping parameters
+                sigma = 3
+                maxiters = None
+
+                yr = []
+                w1 = []
+                w2 = []
+                e_w1 = []
+                e_w2 = []
+
                 allwise.add_column(allwise_year, name='year')
                 year_bin = np.trunc(allwise_year / 0.5)
                 grouped = allwise.group_by(year_bin)
-                binned = grouped.groups.aggregate(np.median)
 
-                plt.errorbar(binned['year'], binned['w1mpro_ep'], yerr=self.std_error(grouped['w1mpro_ep']),
-                             lw=1, linestyle='--', markersize=3, marker='o', zorder=0, c='tab:cyan')
-                plt.errorbar(binned['year'], binned['w2mpro_ep'], yerr=self.std_error(grouped['w2mpro_ep']),
-                             lw=1, linestyle='--', markersize=3, marker='o', zorder=1, c='tab:orange')
+                for group in grouped.groups:
+                    yr_clipped = sigma_clip(group['year'], sigma=sigma, maxiters=maxiters)
+                    w1_clipped = sigma_clip(group['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
+                    w2_clipped = sigma_clip(group['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
+                    yr.append(np.ma.median(yr_clipped))
+                    w1.append(np.ma.median(w1_clipped))
+                    w2.append(np.ma.median(w2_clipped))
+                    e_w1.append(self.std_error(w1_clipped))
+                    e_w2.append(self.std_error(w2_clipped))
 
                 neowise.add_column(neowise_year, name='year')
                 year_bin = np.trunc(neowise_year / 0.5)
                 grouped = neowise.group_by(year_bin)
-                binned = grouped.groups.aggregate(np.median)
 
-                plt.errorbar(binned['year'], binned['w1mpro'], yerr=self.std_error(grouped['w1mpro']),
-                             lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
-                plt.errorbar(binned['year'], binned['w2mpro'], yerr=self.std_error(grouped['w2mpro']),
-                             lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
+                for group in grouped.groups:
+                    yr_clipped = sigma_clip(group['year'], sigma=sigma, maxiters=maxiters)
+                    w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
+                    w2_clipped = sigma_clip(group['w2mpro'], sigma=sigma, maxiters=maxiters)
+                    yr.append(np.ma.median(yr_clipped))
+                    w1.append(np.ma.median(w1_clipped))
+                    w2.append(np.ma.median(w2_clipped))
+                    e_w1.append(self.std_error(w1_clipped))
+                    e_w2.append(self.std_error(w2_clipped))
+
+                plt.errorbar(yr, w1, e_w1, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
+                plt.errorbar(yr, w2, e_w2, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
             else:
                 plt.plot(allwise_year, allwise['w1mpro_ep'], '.', zorder=0, c='tab:cyan')
                 plt.plot(allwise_year, allwise['w2mpro_ep'], '.', zorder=1, c='tab:orange')
@@ -823,9 +843,9 @@ class unTimelyCatalogExplorer:
             plt.xticks(range(2010, 2021, 1))
 
         plt.errorbar(Time(phot_table_w1['mjdmean'], format='mjd').jyear, phot_table_w1['mag'], yerr=phot_table_w1['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue')
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue', alpha=0.7 if overplot_l1b_phot else 1.0)
         plt.errorbar(Time(phot_table_w2['mjdmean'], format='mjd').jyear, phot_table_w2['mag'], yerr=phot_table_w2['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red')
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red', alpha=0.7 if overplot_l1b_phot else 1.0)
 
         if yticks:
             plt.yticks(yticks)
