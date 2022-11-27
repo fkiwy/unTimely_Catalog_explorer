@@ -274,7 +274,7 @@ class unTimelyCatalogExplorer:
 
         return match, x, y
 
-    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, img_size, result_table):
+    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, img_size, cone_search_radius, result_table):
         hdul = fits.open(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout)
 
         data = hdul[1].data
@@ -299,6 +299,10 @@ class unTimelyCatalogExplorer:
             match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, img_size)
 
             if match:
+                target_dist = row['target_dist']
+                if cone_search_radius and target_dist > cone_search_radius:
+                    continue
+
                 object_number += 1
                 object_label = str(file_number) + '.' + str(object_number)
                 band = row['band']
@@ -322,7 +326,7 @@ class unTimelyCatalogExplorer:
 
                 result_table.add_row((
                     object_label,
-                    row['target_dist'],
+                    target_dist,
                     row['x'],
                     row['y'],
                     row['flux'],
@@ -366,8 +370,8 @@ class unTimelyCatalogExplorer:
 
         return coords_w1, coords_w2
 
-    def search_by_coordinates(self, target_ra, target_dec, box_size=100, show_result_table_in_browser=False, save_result_table=True,
-                              result_table_format='ascii', result_table_extension='dat'):
+    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_search_radius=None, show_result_table_in_browser=False,
+                              save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
         """
         Search the catalog by coordinates (box search).
 
@@ -379,6 +383,8 @@ class unTimelyCatalogExplorer:
             Declination in decimal degrees.
         box_size : int, optional
             Image size in arcseconds. The default is 100.
+        cone_search_radius : int, optional
+            Cone search radius in arcseconds. If specified, a cone search will be performed (instead of a box search) around the given coordinates within the given radius.
         show_result_table_in_browser : bool, optional
             Whether to show the result table in your browser (columns can be sorted). The default is False.
         save_result_table : bool, optional
@@ -538,7 +544,7 @@ class unTimelyCatalogExplorer:
                 epoch = catalog_files[i][1]
                 forward = catalog_files[i][2]
                 print(catalog_filename)
-                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, self.img_size, result_table)
+                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, self.img_size, cone_search_radius, result_table)
                 if len(coords_w1) > 0:
                     self.w1_overlays.append((coords_w1, epoch, forward))
                 if len(coords_w2) > 0:
