@@ -125,8 +125,10 @@ class unTimelyCatalogExplorer:
 
         if overlay_labels:
             for i in range(len(overlay_label)):
-                ax.text(overlay_ra[i], overlay_dec[i], overlay_label[i], transform=ax.get_transform('icrs'),
-                        color=overlay_label_color, size=1)
+                # ax.text(overlay_ra[i], overlay_dec[i], overlay_label[i], transform=ax.get_transform('icrs'),
+                #         color=overlay_label_color, size=1)
+                ax.annotate(overlay_label[i], (overlay_ra[i], overlay_dec[i]), xycoords=ax.get_transform('icrs'),
+                            annotation_clip=True, color=overlay_label_color, size=1)
 
         vmin, vmax = self.get_min_max(data, image_contrast)
         ax.imshow(data, vmin=vmin, vmax=vmax, cmap='gray_r')
@@ -274,7 +276,7 @@ class unTimelyCatalogExplorer:
 
         return match, x, y
 
-    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, img_size, cone_search_radius, result_table):
+    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table):
         hdul = fits.open(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout)
 
         data = hdul[1].data
@@ -287,6 +289,11 @@ class unTimelyCatalogExplorer:
         table.add_column(target_dist, name='target_dist')
         table.sort('target_dist')
 
+        if cone_radius:
+            box_size = 2 * cone_radius / self.pixel_scale
+        else:
+            box_size = box_size / self.pixel_scale + 2
+
         coords_w1 = []
         coords_w2 = []
 
@@ -296,11 +303,11 @@ class unTimelyCatalogExplorer:
             catalog_ra = row['ra']
             catalog_dec = row['dec']
 
-            match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, img_size)
+            match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, box_size)
 
             if match:
                 target_dist = row['target_dist']
-                if cone_search_radius and target_dist > cone_search_radius:
+                if cone_radius and target_dist > cone_radius:
                     continue
 
                 object_number += 1
@@ -370,7 +377,7 @@ class unTimelyCatalogExplorer:
 
         return coords_w1, coords_w2
 
-    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_search_radius=None, show_result_table_in_browser=False,
+    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, show_result_table_in_browser=False,
                               save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
         """
         Search the catalog by coordinates (box search).
@@ -382,9 +389,10 @@ class unTimelyCatalogExplorer:
         dec : float
             Declination in decimal degrees.
         box_size : int, optional
-            Image size in arcseconds. The default is 100.
-        cone_search_radius : int, optional
+            Box search size and/or image size in arcseconds. The default is 100.
+        cone_radius : int, optional
             Cone search radius in arcseconds. If specified, a cone search will be performed (instead of a box search) around the given coordinates within the given radius.
+            However, the value of the ``box_size`` parameter still defines the image size of the finder charts and image blinks.
         show_result_table_in_browser : bool, optional
             Whether to show the result table in your browser (columns can be sorted). The default is False.
         save_result_table : bool, optional
@@ -544,7 +552,7 @@ class unTimelyCatalogExplorer:
                 epoch = catalog_files[i][1]
                 forward = catalog_files[i][2]
                 print(catalog_filename)
-                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, self.img_size, cone_search_radius, result_table)
+                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table)
                 if len(coords_w1) > 0:
                     self.w1_overlays.append((coords_w1, epoch, forward))
                 if len(coords_w2) > 0:

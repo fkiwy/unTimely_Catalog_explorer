@@ -5,7 +5,7 @@
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
 The tool allows to:
-- search the catalog by coordinates (box search) ```search_by_coordinates(ra, dec)```,
+- search the catalog by coordinates (box or cone search) ```search_by_coordinates(ra, dec)```,
 - create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays) ```create_finder_charts()```,
 - create light curves using W1 and W2 photometry of all available epochs ```create_light_curves()```,
 - create W1 and W2 image blinks with overplotted catalog positions in GIF format ```create_image_blinks()```.
@@ -32,7 +32,7 @@ ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_
                               catalog_base_url='http://unwise.me/data/neo7/untimely-catalog/',
                               catalog_index_file='untimely_index-neo7.fits')
 
-result_table = ucx.search_by_coordinates(26.9783833, 23.6616914, box_size=100, cone_search_radius=None, show_result_table_in_browser=False,
+result_table = ucx.search_by_coordinates(26.9783833, 23.6616914, box_size=100, cone_radius=None, show_result_table_in_browser=False,
                                          save_result_table=True, result_table_format='ascii.ipac', result_table_extension='dat')
 
 # Do whatever you want with the result table data here
@@ -111,7 +111,7 @@ An unTimelyCatalogExplorer instance.
 
 ### <kbd>method</kbd> `search_by_coordinates`
 ```python
-search_by_coordinates(target_ra, target_dec, box_size=100, cone_search_radius=None, show_result_table_in_browser=False,
+search_by_coordinates(target_ra, target_dec, box_size=100, cone_radius=None, show_result_table_in_browser=False,
                       save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
 ```
 Search the catalog by coordinates (box search).
@@ -122,9 +122,10 @@ Search the catalog by coordinates (box search).
 - dec : float  
     Declination in decimal degrees.
 - box_size : int, optional  
-    Image size in arcseconds. The default is 100.
-- cone_search_radius : int, optional  
+    Box search size and/or image size in arcseconds. The default is 100.
+- cone_radius : int, optional  
     Cone search radius in arcseconds. If specified, a cone search will be performed (instead of a box search) around the given coordinates within the given radius.
+    However, the value of the ``box_size`` parameter still defines the image size of the finder charts and image blinks.
 - show_result_table_in_browser : bool, optional  
     Whether to show the result table in your browser (columns can be sorted). The default is False.
 - save_result_table : bool, optional  
