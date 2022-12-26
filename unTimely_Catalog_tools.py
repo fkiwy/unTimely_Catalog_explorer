@@ -65,6 +65,26 @@ class unTimelyCatalogExplorer:
         self.w1_overlays = None
         self.w2_overlays = None
         self.pixel_scale = 2.75
+        self.unwise_flags = {
+            0: 'bright star core and wings',
+            1: 'PSF-based diffraction spike',
+            2: 'optical ghost',
+            3: 'first latent',
+            4: 'second latent',
+            5: 'circular halo',
+            6: 'bright star saturation',
+            7: 'geometric diffraction spike'
+        }
+        self.unwise_info_flags = {
+            0: 'bright source off coadd edge',
+            1: 'in large galaxy in HyperLeda',
+            2: 'in M31 or Magellanic Cloud',
+            3: 'may contain bright star center',
+            4: 'may be affected by saturation',
+            5: 'nebulosity may be present',
+            6: 'deblending discouraged here',
+            7: 'only "sharp" sources here'
+        }
         os.chdir(directory)
 
     class ImageBucket:
@@ -79,6 +99,21 @@ class unTimelyCatalogExplorer:
             self.overlay_ra = overlay_ra
             self.overlay_dec = overlay_dec
             self.forward = forward
+
+    def decompose_flags(self, flag, flag_dict):
+        flag = int(flag)
+        bits = []
+        descr = []
+
+        for i in range(0, 64):
+            x = 1
+            if (flag & (x << i)) > 0:
+                bits.append(i)
+                descr.append(flag_dict[i])
+
+        bits = ','.join(list(map(str, bits)))
+        descr = ','.join(list(map(str, descr)))
+        return bits, descr
 
     def process_image_data(self, hdu, ra, dec, box_size):
         data = hdu.data
@@ -292,7 +327,7 @@ class unTimelyCatalogExplorer:
         if cone_radius:
             box_size = 2 * cone_radius / self.pixel_scale
         else:
-            box_size = box_size / self.pixel_scale + 2
+            box_size = box_size / self.pixel_scale
 
         coords_w1 = []
         coords_w2 = []
@@ -302,14 +337,14 @@ class unTimelyCatalogExplorer:
         for row in table:
             catalog_ra = row['ra']
             catalog_dec = row['dec']
+            target_dist = row['target_dist']
 
-            match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, box_size)
+            if cone_radius and target_dist > cone_radius:
+                continue
+
+            match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, box_size + 2)
 
             if match:
-                target_dist = row['target_dist']
-                if cone_radius and target_dist > cone_radius:
-                    continue
-
                 object_number += 1
                 object_label = str(file_number) + '.' + str(object_number)
                 band = row['band']
@@ -330,6 +365,9 @@ class unTimelyCatalogExplorer:
                     mag_upper = self.calculate_magnitude(flux - dflux)
                     mag_lower = self.calculate_magnitude(flux + dflux)
                     dmag = (mag_upper - mag_lower) / 2
+
+                flags_unwise_bits, flags_unwise_descr = self.decompose_flags(row['flags_unwise'], self.unwise_flags)
+                flags_info_bits, flags_info_descr = self.decompose_flags(row['flags_info'], self.unwise_info_flags)
 
                 result_table.add_row((
                     object_label,
@@ -367,7 +405,11 @@ class unTimelyCatalogExplorer:
                     row['MJDMAX'],
                     row['MJDMEAN'],
                     mag,
-                    dmag
+                    dmag,
+                    flags_unwise_bits,
+                    flags_unwise_descr,
+                    flags_info_bits,
+                    flags_info_descr
                 ))
 
                 if band == 1:
@@ -501,12 +543,17 @@ class unTimelyCatalogExplorer:
                 'mjdmax',
                 'mjdmean',
                 'mag',
-                'dmag'
+                'dmag',
+                'flags_unwise_bits',
+                'flags_unwise_descr',
+                'flags_info_bits',
+                'flags_info_descr'
             ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
-                      'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f'),
+                      'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f',
+                      'S', 'S', 'S', 'S'),
                 units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
                        '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
-                       'mag', 'mag'),
+                       'mag', 'mag', '', '', '', ''),
                 descriptions=('Unique object label for a specific result set to retrieve the corresponding source on the finder charts',
                               'Angular distance to the target coordinates',
                               'x coordinate',
@@ -542,8 +589,11 @@ class unTimelyCatalogExplorer:
                               'MJD value of latest contributing exposure',
                               'mean of MJDMIN and MJDMAX',
                               'Vega magnitude given by 22.5-2.5log(flux)',
-                              'magnitude uncertainty'
-                              )
+                              'magnitude uncertainty',
+                              'unWISE flags bits',
+                              'unWISE flags description',
+                              'info flags bits',
+                              'info flags description')
             )
 
             print('Scanning individual catalog files ...')
@@ -805,43 +855,42 @@ class unTimelyCatalogExplorer:
             neowise_year = Time(neowise['mjd'], format='mjd').jyear
 
             if bin_l1b_phot:
-                # Set common sigma clipping parameters
-                sigma = 3
-                maxiters = None
-
                 yr = []
                 w1 = []
                 w2 = []
                 e_w1 = []
                 e_w2 = []
 
-                allwise.add_column(allwise_year, name='year')
-                year_bin = np.trunc(allwise_year / 0.5)
-                grouped = allwise.group_by(year_bin)
+                sigma = 3
+                maxiters = None
 
-                for group in grouped.groups:
-                    yr_clipped = sigma_clip(group['year'], sigma=sigma, maxiters=maxiters)
-                    w1_clipped = sigma_clip(group['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
-                    w2_clipped = sigma_clip(group['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
-                    yr.append(np.ma.median(yr_clipped))
-                    w1.append(np.ma.median(w1_clipped))
-                    w2.append(np.ma.median(w2_clipped))
-                    e_w1.append(self.std_error(w1_clipped))
-                    e_w2.append(self.std_error(w2_clipped))
+                if len(allwise) > 0:
+                    allwise.add_column(allwise_year, name='year')
+                    year_bin = np.trunc(allwise_year / 0.5)
+                    grouped = allwise.group_by(year_bin)
 
-                neowise.add_column(neowise_year, name='year')
-                year_bin = np.trunc(neowise_year / 0.5)
-                grouped = neowise.group_by(year_bin)
+                    for group in grouped.groups:
+                        w1_clipped = sigma_clip(group['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
+                        w2_clipped = sigma_clip(group['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
+                        yr.append(np.ma.median(group['year']))
+                        w1.append(np.ma.median(w1_clipped))
+                        w2.append(np.ma.median(w2_clipped))
+                        e_w1.append(self.std_error(w1_clipped))
+                        e_w2.append(self.std_error(w2_clipped))
 
-                for group in grouped.groups:
-                    yr_clipped = sigma_clip(group['year'], sigma=sigma, maxiters=maxiters)
-                    w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
-                    w2_clipped = sigma_clip(group['w2mpro'], sigma=sigma, maxiters=maxiters)
-                    yr.append(np.ma.median(yr_clipped))
-                    w1.append(np.ma.median(w1_clipped))
-                    w2.append(np.ma.median(w2_clipped))
-                    e_w1.append(self.std_error(w1_clipped))
-                    e_w2.append(self.std_error(w2_clipped))
+                if len(neowise) > 0:
+                    neowise.add_column(neowise_year, name='year')
+                    year_bin = np.trunc(neowise_year / 0.5)
+                    grouped = neowise.group_by(year_bin)
+
+                    for group in grouped.groups:
+                        w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
+                        w2_clipped = sigma_clip(group['w2mpro'], sigma=sigma, maxiters=maxiters)
+                        yr.append(np.ma.median(group['year']))
+                        w1.append(np.ma.median(w1_clipped))
+                        w2.append(np.ma.median(w2_clipped))
+                        e_w1.append(self.std_error(w1_clipped))
+                        e_w2.append(self.std_error(w2_clipped))
 
                 plt.errorbar(yr, w1, e_w1, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
                 plt.errorbar(yr, w2, e_w2, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
