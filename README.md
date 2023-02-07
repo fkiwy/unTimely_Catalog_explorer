@@ -18,13 +18,12 @@ The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
 
 ## Installation
 
-``unTimely_Catalog_explorer`` can be installed as follows:
+The code can be installed as follows:
 ```
 git clone https://github.com/fkiwy/unTimely_Catalog_explorer.git
 cd unTimely_Catalog_explorer
 python setup.py install
 ```
-
 ## Usage example
 
 Most of the parameters can be omitted as they have default values (see [API documentation](#apidoc) for more details).
@@ -80,7 +79,7 @@ Note that the default output directory for the finder charts, image blinks and l
 ```
 ![Full result table](Example%20output/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
 
-**Columns description**
+**Column description:**
 ```
        name         dtype   unit                                                                       description                                                                     
 ------------------ ------- ------ -----------------------------------------------------------------------------------------------------------------------------------------------------
