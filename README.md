@@ -16,6 +16,15 @@ The tool allows to:
 
 The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
 
+## Installation
+
+``unTimely_Catalog_explorer`` can be installed as follows:
+```
+git clone https://github.com/fkiwy/unTimely_Catalog_explorer.git
+cd unTimely_Catalog_explorer
+python setup.py install
+```
+
 ## Usage example
 
 Most of the parameters can be omitted as they have default values (see [API documentation](#apidoc) for more details).
@@ -48,11 +57,13 @@ ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_
 ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, separate_scan_dir=False, display_blinks=False)
 ```
 
+Note that the default output directory for the finder charts, image blinks and light curve plots is your system temp folder (given by ``tempfile.gettempdir()``).
+
 ## Example output
 
 ### Result table:
 ```
-|object_label|target_dist|        x|        y|      flux|          dx|          dy|     dflux|        qf|     rchi2|  fracflux|   fluxlbs|  dfluxlbs|     fwhm|  spread_model|dspread_model|   fluxiso|          xiso|          yiso|         sky|       ra|      dec|coadd_id|band|          unwise_detid|  nm|primary|flags_unwise|flags_info|epoch|forward|   mjdmin|   mjdmax|  mjdmean|       mag|       dmag|
+|source_label|target_dist|        x|        y|      flux|          dx|          dy|     dflux|        qf|     rchi2|  fracflux|   fluxlbs|  dfluxlbs|     fwhm|  spread_model|dspread_model|   fluxiso|          xiso|          yiso|         sky|       ra|      dec|coadd_id|band|          unwise_detid|  nm|primary|flags_unwise|flags_info|epoch|forward|   mjdmin|   mjdmax|  mjdmean|       mag|       dmag|
 |        char|      float|    float|    float|     float|       float|       float|     float|     float|     float|     float|     float|     float|    float|         float|        float|     float|         float|         float|       float|    float|    float|    char|long|                  char|long|   long|        long|      long| long|   long|    float|    float|    float|     float|      float|
 |            |     arcsec|      pix|      pix|      nMgy|         pix|         pix|      nMgy|          |          |          |      nMgy|      nMgy|      pix|              |             |          |              |              |        nMgy|      deg|      deg|        |    |                      |    |       |            |          |     |       |        d|        d|        d|       mag|        mag|
 |        null|       null|     null|     null|      null|        null|        null|      null|      null|      null|      null|      null|      null|     null|          null|         null|      null|          null|          null|        null|     null|     null|    null|null|                  null|null|   null|        null|      null| null|   null|     null|     null|     null|      null|       null|
@@ -68,6 +79,52 @@ ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, sep
          1.10   55.028603 263.89313 343.63528  106.68029   0.36999014    0.3683969  22.931067        1.0 0.59704506 0.91822433  99.514885  23.393208 2.4997027  -0.0054461956   0.007932083  106.65743      0.2900153    -0.20782283  -0.23481975  26.98893 23.649845 0264p242    1 0264p242w1o0026338e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  17.471283 0.019307062 
 ```
 ![Full result table](Example%20output/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
+
+**Columns description**
+```
+       name         dtype   unit                                                                       description                                                                     
+------------------ ------- ------ -----------------------------------------------------------------------------------------------------------------------------------------------------
+      source_label bytes32                                  Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts
+       target_dist float32 arcsec                                                                                                            Angular distance to the target coordinates
+                 x float32    pix                                                                                                                                          x coordinate
+                 y float32    pix                                                                                                                                          y coordinate
+              flux float32   nMgy                                                                                                                                             Vega flux
+                dx float32    pix                                                                                                                                         x uncertainty
+                dy float32    pix                                                                                                                                         y uncertainty
+             dflux float32   nMgy                                                                                                                               formal flux uncertainty
+                qf float32                                                                                                                         PSF-weighted fraction of good pixels
+             rchi2 float32                                                                                                                                    PSF-weighted average chi2
+          fracflux float32                                                                                                               PSF-weighted fraction of flux from this source
+           fluxlbs float32   nMgy                                                                                                                        FWHM of PSF at source location
+          dfluxlbs float32   nMgy                                                                                                                      local-background-subtracted flux
+              fwhm float32    pix                                                                                                                            formal fluxlbs uncertainty
+      spread_model float32                                                                                                                        SExtractor-like source size parameter
+     dspread_model float32                                                                                                                                  uncertainty in spread_model
+           fluxiso float32             flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue
+              xiso float32        x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue
+              yiso float32        y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue
+               sky float32   nMgy                                                                                                                       residual sky at source location
+                ra float32    deg                                                                                                                                                  R.A.
+               dec float32    deg                                                                                                                                                 decl.
+          coadd_id bytes32                                                                                                                            unWISE/AllWISE coadd_id of source
+              band   int32                                                                                                                                           1 for W1, 2 for W2
+      unwise_detid bytes32                                                                                                                              detection ID, unique in catalog
+                nm   int32                                                                                                                          number of images in coadd at source
+           primary   int32                                                                                                                    source located in primary region of coadd
+      flags_unwise   int32                                                                                                                              unWISE flags at source location
+        flags_info   int32                                                                                                                          additional flags at source location
+             epoch   int32                                                                                                                                          unWISE epoch number
+           forward   int32                                                                 boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit
+            mjdmin float32      d                                                                                                           MJD value of earliest contributing exposure
+            mjdmax float32      d                                                                                                             MJD value of latest contributing exposure
+           mjdmean float32      d                                                                                                                             mean of MJDMIN and MJDMAX
+               mag float32    mag                                                                                                             Vega magnitude given by 22.5-2.5log(flux)
+              dmag float32    mag                                                                                                                                 magnitude uncertainty
+ flags_unwise_bits bytes32                                                                                                                                            unWISE flags bits
+flags_unwise_descr bytes32                                                                                                                                     unWISE flags description
+   flags_info_bits bytes32                                                                                                                                              info flags bits
+  flags_info_descr bytes32                                                                                                                                       info flags description
+```
 
 ### Finder charts:
 ![Finder charts](Example%20output/unTimely_Catalog_finder_charts_26.978383%2B23.661691.png)
@@ -94,7 +151,7 @@ Creates an unTimelyCatalogExplorer instance with the given parameters
 
 #### <ins>Parameters</ins>
 - directory : str, optional  
-    Directory where the finder charts should be saved. The default is tempfile.gettempdir().
+    Directory where the finder charts, image blinks and light curve plots should be saved. The default is tempfile.gettempdir().
 - cache : bool, optional  
     Whether to cache the downloaded files. The default is True.
 - show_progress : bool, optional  
@@ -155,7 +212,7 @@ Create finder charts for W1 and W2 at each epoch with overplotted catalog positi
 - overlay_color : str, optional  
     Overlay color. The default is 'green'.
 - overlay_labels : bool, optional  
-    Whether to plot catalog entry labels on the finder charts (tied to overlay circles). The default is False.
+    Whether to plot overlay labels (corresponding to source labels in the result table) on the finder charts. The default is False.
 - overlay_label_color : str, optional  
     Label color. The default is 'red'.
 - image_contrast : int, optional  

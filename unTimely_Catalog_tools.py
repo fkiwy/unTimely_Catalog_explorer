@@ -346,7 +346,7 @@ class unTimelyCatalogExplorer:
 
             if match:
                 object_number += 1
-                object_label = str(file_number) + '.' + str(object_number)
+                source_label = str(file_number) + '.' + str(object_number)
                 band = row['band']
                 """
                 From Schlafly et al. 2019:
@@ -370,7 +370,7 @@ class unTimelyCatalogExplorer:
                 flags_info_bits, flags_info_descr = self.decompose_flags(row['flags_info'], self.unwise_info_flags)
 
                 result_table.add_row((
-                    object_label,
+                    source_label,
                     target_dist,
                     row['x'],
                     row['y'],
@@ -413,9 +413,9 @@ class unTimelyCatalogExplorer:
                 ))
 
                 if band == 1:
-                    coords_w1.append((object_label, row['ra'], row['dec']))
+                    coords_w1.append((source_label, row['ra'], row['dec']))
                 else:
-                    coords_w2.append((object_label, row['ra'], row['dec']))
+                    coords_w2.append((source_label, row['ra'], row['dec']))
 
         return coords_w1, coords_w2
 
@@ -508,7 +508,7 @@ class unTimelyCatalogExplorer:
             catalog_files = file_series[0]
 
             result_table = Table(names=(
-                'object_label',
+                'source_label',
                 'target_dist',
                 'x',
                 'y',
@@ -554,7 +554,7 @@ class unTimelyCatalogExplorer:
                 units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
                        '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
                        'mag', 'mag', '', '', '', ''),
-                descriptions=('Unique object label for a specific result set to retrieve the corresponding source on the finder charts',
+                descriptions=('Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts',
                               'Angular distance to the target coordinates',
                               'x coordinate',
                               'y coordinate',
@@ -854,15 +854,15 @@ class unTimelyCatalogExplorer:
             allwise_year = Time(allwise['mjd'], format='mjd').jyear
             neowise_year = Time(neowise['mjd'], format='mjd').jyear
 
+            sigma = 3
+            maxiters = None
+
             if bin_l1b_phot:
                 yr = []
                 w1 = []
                 w2 = []
                 e_w1 = []
                 e_w2 = []
-
-                sigma = 3
-                maxiters = None
 
                 if len(allwise) > 0:
                     allwise.add_column(allwise_year, name='year')
@@ -895,10 +895,15 @@ class unTimelyCatalogExplorer:
                 plt.errorbar(yr, w1, e_w1, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
                 plt.errorbar(yr, w2, e_w2, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
             else:
-                plt.plot(allwise_year, allwise['w1mpro_ep'], '.', zorder=0, c='tab:cyan')
-                plt.plot(allwise_year, allwise['w2mpro_ep'], '.', zorder=1, c='tab:orange')
-                plt.plot(neowise_year, neowise['w1mpro'], '.', label='L1b W1', zorder=0, c='tab:cyan')
-                plt.plot(neowise_year, neowise['w2mpro'], '.', label='L1b W2', zorder=1, c='tab:orange')
+                w1_clipped = sigma_clip(allwise['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
+                w2_clipped = sigma_clip(allwise['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
+                plt.plot(allwise_year, w1_clipped, '.', zorder=0, c='tab:cyan')
+                plt.plot(allwise_year, w2_clipped, '.', zorder=1, c='tab:orange')
+
+                w1_clipped = sigma_clip(neowise['w1mpro'], sigma=sigma, maxiters=maxiters)
+                w2_clipped = sigma_clip(neowise['w2mpro'], sigma=sigma, maxiters=maxiters)
+                plt.plot(neowise_year, w1_clipped, '.', label='L1b W1', zorder=0, c='tab:cyan')
+                plt.plot(neowise_year, w2_clipped, '.', label='L1b W2', zorder=1, c='tab:orange')
 
             plt.xticks(rotation=45)
             plt.xticks(range(2010, 2023, 1))
