@@ -24,6 +24,7 @@ git clone https://github.com/fkiwy/unTimely_Catalog_explorer.git
 cd unTimely_Catalog_explorer
 python setup.py install
 ```
+
 ## Usage example
 
 Most of the parameters can be omitted as they have default values (see [API documentation](#apidoc) for more details).
@@ -81,48 +82,48 @@ Note that the default output directory for the finder charts, image blinks and l
 
 **Column description:**
 ```
-       name         dtype   unit                                                                       description                                                                     
+       Name          Type   Unit                                                                       Description                                                                     
 ------------------ ------- ------ -----------------------------------------------------------------------------------------------------------------------------------------------------
-      source_label bytes32                                  Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts
-       target_dist float32 arcsec                                                                                                            Angular distance to the target coordinates
-                 x float32    pix                                                                                                                                          x coordinate
-                 y float32    pix                                                                                                                                          y coordinate
-              flux float32   nMgy                                                                                                                                             Vega flux
-                dx float32    pix                                                                                                                                         x uncertainty
-                dy float32    pix                                                                                                                                         y uncertainty
-             dflux float32   nMgy                                                                                                                               formal flux uncertainty
-                qf float32                                                                                                                         PSF-weighted fraction of good pixels
-             rchi2 float32                                                                                                                                    PSF-weighted average chi2
-          fracflux float32                                                                                                               PSF-weighted fraction of flux from this source
-           fluxlbs float32   nMgy                                                                                                                        FWHM of PSF at source location
-          dfluxlbs float32   nMgy                                                                                                                      local-background-subtracted flux
-              fwhm float32    pix                                                                                                                            formal fluxlbs uncertainty
-      spread_model float32                                                                                                                        SExtractor-like source size parameter
-     dspread_model float32                                                                                                                                  uncertainty in spread_model
-           fluxiso float32             flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue
-              xiso float32        x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue
-              yiso float32        y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue
-               sky float32   nMgy                                                                                                                       residual sky at source location
-                ra float32    deg                                                                                                                                                  R.A.
-               dec float32    deg                                                                                                                                                 decl.
-          coadd_id bytes32                                                                                                                            unWISE/AllWISE coadd_id of source
-              band   int32                                                                                                                                           1 for W1, 2 for W2
-      unwise_detid bytes32                                                                                                                              detection ID, unique in catalog
-                nm   int32                                                                                                                          number of images in coadd at source
-           primary   int32                                                                                                                    source located in primary region of coadd
-      flags_unwise   int32                                                                                                                              unWISE flags at source location
-        flags_info   int32                                                                                                                          additional flags at source location
-             epoch   int32                                                                                                                                          unWISE epoch number
-           forward   int32                                                                 boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit
-            mjdmin float32      d                                                                                                           MJD value of earliest contributing exposure
-            mjdmax float32      d                                                                                                             MJD value of latest contributing exposure
-           mjdmean float32      d                                                                                                                             mean of MJDMIN and MJDMAX
-               mag float32    mag                                                                                                             Vega magnitude given by 22.5-2.5log(flux)
-              dmag float32    mag                                                                                                                                 magnitude uncertainty
- flags_unwise_bits bytes32                                                                                                                                            unWISE flags bits
-flags_unwise_descr bytes32                                                                                                                                     unWISE flags description
-   flags_info_bits bytes32                                                                                                                                              info flags bits
-  flags_info_descr bytes32                                                                                                                                       info flags description
+source_label       S32     None   Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts                          
+target_dist        float32 arcsec Angular distance to the target coordinates                                                                                                           
+x                  float32 pix    x coordinate                                                                                                                                         
+y                  float32 pix    y coordinate                                                                                                                                         
+flux               float32 nMgy   Vega flux                                                                                                                                            
+dx                 float32 pix    x uncertainty                                                                                                                                        
+dy                 float32 pix    y uncertainty                                                                                                                                        
+dflux              float32 nMgy   formal flux uncertainty                                                                                                                              
+qf                 float32 None   PSF-weighted fraction of good pixels                                                                                                                 
+rchi2              float32 None   PSF-weighted average chi2                                                                                                                            
+fracflux           float32 None   PSF-weighted fraction of flux from this source                                                                                                       
+fluxlbs            float32 nMgy   FWHM of PSF at source location                                                                                                                       
+dfluxlbs           float32 nMgy   local-background-subtracted flux                                                                                                                     
+fwhm               float32 pix    formal fluxlbs uncertainty                                                                                                                           
+spread_model       float32 None   SExtractor-like source size parameter                                                                                                                
+dspread_model      float32 None   uncertainty in spread_model                                                                                                                          
+fluxiso            float32 None   flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue     
+xiso               float32 None   x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue
+yiso               float32 None   y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue
+sky                float32 nMgy   residual sky at source location                                                                                                                      
+ra                 float32 deg    R.A.                                                                                                                                                 
+dec                float32 deg    decl.                                                                                                                                                
+coadd_id           S32     None   unWISE/AllWISE coadd_id of source                                                                                                                    
+band               int32   None   1 for W1, 2 for W2                                                                                                                                   
+unwise_detid       S32     None   detection ID, unique in catalog                                                                                                                      
+nm                 int32   None   number of images in coadd at source                                                                                                                  
+primary            int32   None   source located in primary region of coadd                                                                                                            
+flags_unwise       int32   None   unWISE flags at source location                                                                                                                      
+flags_info         int32   None   additional flags at source location                                                                                                                  
+epoch              int32   None   unWISE epoch number                                                                                                                                  
+forward            int32   None   boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit                                                         
+mjdmin             float32 d      MJD value of earliest contributing exposure                                                                                                          
+mjdmax             float32 d      MJD value of latest contributing exposure                                                                                                            
+mjdmean            float32 d      mean of MJDMIN and MJDMAX                                                                                                                            
+mag                float32 mag    Vega magnitude given by 22.5-2.5log(flux)                                                                                                            
+dmag               float32 mag    magnitude uncertainty                                                                                                                                
+flags_unwise_bits  S32     None   unWISE flags bits                                                                                                                                    
+flags_unwise_descr S32     None   unWISE flags description                                                                                                                             
+flags_info_bits    S32     None   info flags bits                                                                                                                                      
+flags_info_descr   S32     None   info flags description                                                                                                                               
 ```
 
 ### Finder charts:

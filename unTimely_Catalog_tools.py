@@ -263,6 +263,17 @@ class unTimelyCatalogExplorer:
             return np.nan
         return 22.5 - 2.5 * math.log10(flux)
 
+    def print_result_table_info(self):
+        info_table = Table(names=['Name', 'Type', 'Unit', 'Description'], dtype=['S', 'S', 'S', 'S'])
+        info_table['Name'].format = '<'
+        info_table['Type'].format = '<'
+        info_table['Unit'].format = '<'
+        info_table['Description'].format = '<'
+        for colname in self.result_table.colnames:
+            col = self.result_table[colname]
+            info_table.add_row([col.name, str(col.dtype), str(col.unit), col.description])
+        info_table.pprint_all()
+
     def box_contains_target(self, box_center_ra, box_center_dec, target_ra, target_dec, box_size):
         # Pre-filtering on ra and dec to avoid cases not well handled by the world to pixel solution
         d = 1  # Tile size in degrees: 4048 * 2.75 / 3600 = 1.564 deg (1.564 / 2 = 0.782 ~ 1 deg)
