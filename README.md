@@ -14,7 +14,7 @@ The tool allows to:
 
 ## Module dependencies:
 
-The Python Standard Library, NumPy, Matplotlib, Astropy and Pillow (PIL Fork)
+The Python Standard Library, NumPy, Matplotlib, Pillow (PIL Fork), Requests, Astropy and Reproject (which is an Astropy affiliated package)
 
 ## Installation
 
