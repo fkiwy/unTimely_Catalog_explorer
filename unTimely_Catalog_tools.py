@@ -42,6 +42,8 @@ class unTimelyCatalogExplorer:
             Whether to show the file download progress. The default is True.
         timeout : int, optional
             Timeout for remote requests in seconds. The default is 300.
+        suppress_console_output : bool, optional
+            Whether to suppress all console output except error messages. The default is False.
         catalog_base_url : str, optional
             Base URL to access the unTimely Catalog. The default is 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'.
         catalog_index_file : str, optional

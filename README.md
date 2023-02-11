@@ -39,7 +39,7 @@ The ```create_image_blinks``` method depends on the results of the ```create_fin
 from unTimely_Catalog_tools import unTimelyCatalogExplorer
 import tempfile
 
-ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300,
+ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False,
                               catalog_base_url='http://unwise.me/data/neo7/untimely-catalog/',
                               catalog_index_file='untimely_index-neo7.fits')
 
@@ -158,6 +158,8 @@ Creates an unTimelyCatalogExplorer instance with the given parameters
     Whether to show the file download progress. The default is True.
 - timeout : int, optional  
     Timeout for remote requests in seconds. The default is 300.
+- suppress_console_output : bool, optional  
+    Whether to suppress all console output except error messages. The default is False.
 - catalog_base_url : str, optional  
     Base URL to access the unTimely Catalog. The default is 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'.
 - catalog_index_file : str, optional  
