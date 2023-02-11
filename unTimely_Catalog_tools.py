@@ -26,7 +26,7 @@ from reproject import reproject_interp
 
 class unTimelyCatalogExplorer:
 
-    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300,
+    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False,
                  catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
                  catalog_index_file='untimely_index-neo7.fits'):
         """
@@ -55,8 +55,9 @@ class unTimelyCatalogExplorer:
         self.catalog_base_url = catalog_base_url
         self.catalog_index_file = catalog_index_file
         self.cache = cache
-        self.show_progress = show_progress
+        self.show_progress = False if suppress_console_output else show_progress
         self.timeout = timeout
+        self.suppress_console_output = suppress_console_output
         self.open_file = False
         self.file_format = 'pdf'
         self.result_table = None
@@ -263,6 +264,17 @@ class unTimelyCatalogExplorer:
             return np.nan
         return 22.5 - 2.5 * math.log10(flux)
 
+    def disable_print(self):
+        self.stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def enable_print(self):
+        sys.stdout = self.stdout
+
+    def printout(self, message):
+        if not self.suppress_console_output:
+            print(message)
+
     def print_result_table_info(self):
         info_table = Table(names=['Name', 'Type', 'Unit', 'Description'], dtype=['S', 'S', 'S', 'S'])
         info_table['Name'].format = '<'
@@ -323,7 +335,11 @@ class unTimelyCatalogExplorer:
         return match, x, y
 
     def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table):
+        if not self.show_progress:
+            self.disable_print()
         hdul = fits.open(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout)
+        if not self.show_progress:
+            self.enable_print()
 
         data = hdul[1].data
         hdul.close()
@@ -482,7 +498,7 @@ class unTimelyCatalogExplorer:
 
         prev_coadd_id = table[0]['COADD_ID']
 
-        print('Scanning catalog index file ...')
+        self.printout('Scanning catalog index file ...')
 
         for row in table:
             epoch = row['EPOCH']
@@ -509,8 +525,6 @@ class unTimelyCatalogExplorer:
         file_series.append(tile_catalog_files)
 
         file_series.sort(key=lambda x: x[0], reverse=True)
-
-        # print(file_series)
 
         self.w1_overlays = []
         self.w2_overlays = []
@@ -599,7 +613,7 @@ class unTimelyCatalogExplorer:
                               'MJD value of earliest contributing exposure',
                               'MJD value of latest contributing exposure',
                               'mean of MJDMIN and MJDMAX',
-                              'Vega magnitude given by 22.5-2.5log(flux)',
+                              'Vega magnitude given by 22.5-2.5log10(flux)',
                               'magnitude uncertainty',
                               'unWISE flags bits',
                               'unWISE flags description',
@@ -607,12 +621,12 @@ class unTimelyCatalogExplorer:
                               'info flags description')
             )
 
-            print('Scanning individual catalog files ...')
+            self.printout('Scanning individual catalog files ...')
             for i in range(1, len(catalog_files)):
                 catalog_filename = catalog_files[i][0]
                 epoch = catalog_files[i][1]
                 forward = catalog_files[i][2]
-                print(catalog_filename)
+                self.printout(catalog_filename)
                 coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table)
                 if len(coords_w1) > 0:
                     self.w1_overlays.append((coords_w1, epoch, forward))
@@ -665,7 +679,7 @@ class unTimelyCatalogExplorer:
         if self.w1_overlays is None and self.w2_overlays is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
 
-        print('Creating finder charts ...')
+        self.printout('Creating finder charts ...')
 
         # Figure settings
         fig = plt.figure()
@@ -826,7 +840,7 @@ class unTimelyCatalogExplorer:
         if self.result_table is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
 
-        print('Creating light curves ...')
+        self.printout('Creating light curves ...')
 
         ra = self.target_ra
         dec = self.target_dec
@@ -842,7 +856,8 @@ class unTimelyCatalogExplorer:
         phot_table = result_table[mask]
 
         if (len(phot_table) == 0):
-            print('No photometry found in specified radius (default is 5 arcsec) to create any light curves.')
+            print(f'No photometry found in specified radius ({photometry_radius} arcsec) '
+                  f'at given coordinates ({self.target_ra} {self.target_dec}) to create light curves.')
             return
 
         # Get W1 photometry
@@ -921,10 +936,11 @@ class unTimelyCatalogExplorer:
         else:
             plt.xticks(range(2010, 2021, 1))
 
+        alpha = 0.7 if overplot_l1b_phot else 1.0
         plt.errorbar(Time(phot_table_w1['mjdmean'], format='mjd').jyear, phot_table_w1['mag'], yerr=phot_table_w1['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue', alpha=0.7 if overplot_l1b_phot else 1.0)
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue', alpha=alpha)
         plt.errorbar(Time(phot_table_w2['mjdmean'], format='mjd').jyear, phot_table_w2['mag'], yerr=phot_table_w2['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red', alpha=0.7 if overplot_l1b_phot else 1.0)
+                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red', alpha=alpha)
 
         if yticks:
             plt.yticks(yticks)
@@ -973,7 +989,7 @@ class unTimelyCatalogExplorer:
         if self.w1_images is None and self.w2_images is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
 
-        print('Creating image blinks ...')
+        self.printout('Creating image blinks ...')
 
         ra = self.target_ra
         dec = self.target_dec
@@ -1056,11 +1072,11 @@ class unTimelyCatalogExplorer:
 
             images.append(rgb_image)
 
-        filename = 'Animated_time_series_w1_' + self.create_obj_name(ra, dec) + '.gif'
-        images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
-
-        if display_blinks:
-            self.start_file(filename)
+        if images:
+            filename = 'Animated_time_series_w1_' + self.create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+            if display_blinks:
+                self.start_file(filename)
 
         # Create animated GIF - W2 with overlays
         images = []
@@ -1108,11 +1124,11 @@ class unTimelyCatalogExplorer:
 
             images.append(rgb_image)
 
-        filename = 'Animated_time_series_w2_' + self.create_obj_name(ra, dec) + '.gif'
-        images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
-
-        if display_blinks:
-            self.start_file(filename)
+        if images:
+            filename = 'Animated_time_series_w2_' + self.create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+            if display_blinks:
+                self.start_file(filename)
 
         # Create animated GIF - W1+W2 without overlays
         images = []
@@ -1147,8 +1163,8 @@ class unTimelyCatalogExplorer:
 
             images.append(rgb_image)
 
-        filename = 'Animated_time_series_' + self.create_obj_name(ra, dec) + '.gif'
-        images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
-
-        if display_blinks:
-            self.start_file(filename)
+        if images:
+            filename = 'Animated_time_series_' + self.create_obj_name(ra, dec) + '.gif'
+            images[0].save(filename, save_all=True, append_images=images[1:], loop=0)
+            if display_blinks:
+                self.start_file(filename)

@@ -12,7 +12,7 @@ The tool allows to:
 - create light curves using W1 and W2 photometry of all available epochs ```create_light_curves()```,
 - create W1 and W2 image blinks with overplotted catalog positions in GIF format ```create_image_blinks()```.
 
-## Module dependencies:
+## Module dependencies
 
 The Python Standard Library, NumPy, Matplotlib, Pillow (PIL Fork), Requests, Astropy and Reproject (which is an Astropy affiliated package)
 
@@ -25,7 +25,7 @@ cd unTimely_Catalog_explorer
 python setup.py install
 ```
 
-## Usage example
+## Example usage
 
 Most of the parameters can be omitted as they have default values (see [API documentation](#apidoc) for more details).
 
@@ -118,7 +118,7 @@ forward            int32   None   boolean, were input frames acquired pointing f
 mjdmin             float32 d      MJD value of earliest contributing exposure                                                                                                          
 mjdmax             float32 d      MJD value of latest contributing exposure                                                                                                            
 mjdmean            float32 d      mean of MJDMIN and MJDMAX                                                                                                                            
-mag                float32 mag    Vega magnitude given by 22.5-2.5log(flux)                                                                                                            
+mag                float32 mag    Vega magnitude given by 22.5-2.5log10(flux)                                                                                                            
 dmag               float32 mag    magnitude uncertainty                                                                                                                                
 flags_unwise_bits  S32     None   unWISE flags bits                                                                                                                                    
 flags_unwise_descr S32     None   unWISE flags description                                                                                                                             
