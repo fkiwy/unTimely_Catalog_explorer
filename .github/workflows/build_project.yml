@@ -24,10 +24,10 @@ jobs:
           flake8 .
         continue-on-error: true
       - name: Create output directory
-        run: mkdir output
+        run: mkdir unTimely_Catalog_tools_output
       - name: Run script
         run: python unTimely_Catalog_tools_exec.py
       - uses: actions/upload-artifact@v3
         with:
           name: Result
-          path: output
+          path: unTimely_Catalog_tools_output
