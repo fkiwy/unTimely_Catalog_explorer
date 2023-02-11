@@ -29,5 +29,5 @@ jobs:
         run: python unTimely_Catalog_tools_exec.py
       - uses: actions/upload-artifact@v3
         with:
-          name: Result
+          name: unTimely_Catalog_tools result
           path: unTimely_Catalog_tools_output
