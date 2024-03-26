@@ -40,7 +40,7 @@ from unTimely_Catalog_tools import unTimelyCatalogExplorer
 import tempfile
 
 ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False,
-                              catalog_base_url='http://unwise.me/data/neo7/untimely-catalog/',
+                              catalog_base_url='https://unwise.me/data/neo7/untimely-catalog/',
                               catalog_index_file='untimely_index-neo7.fits')
 
 result_table = ucx.search_by_coordinates(26.9783833, 23.6616914, box_size=100, cone_radius=None, show_result_table_in_browser=False,

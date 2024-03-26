@@ -482,7 +482,7 @@ class unTimelyCatalogExplorer:
         self.target_ra = target_ra
         self.target_dec = target_dec
         self.box_size = box_size
-        self.img_size = int(round(box_size / self.pixel_scale, 0))
+        self.img_size = round(box_size / self.pixel_scale)
 
         if exists(self.catalog_index_file):
             hdul = fits.open(self.catalog_index_file)
