@@ -234,7 +234,8 @@ None.
 
 ### <kbd>method</kbd> `create_light_curves`
 ```python
-create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False):
+create_light_curves(photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False,
+                    legend_location='best'):
 ```
 Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -251,6 +252,8 @@ Create light curves using W1 and W2 photometry of all available epochs.
     Whether to overplot L1b photometry. The default is False.
 - bin_l1b_phot : bool, optional  
     Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
+- legend_location : str, optional
+    Matplotlib legend location string ('upper left', 'upper right', 'lower left', 'lower right', etc.). The default is 'best'.
 
 #### <ins>Raises</ins>
 Exception if method ``search_by_coordinates`` has not been called first.

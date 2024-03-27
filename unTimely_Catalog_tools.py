@@ -2,12 +2,13 @@ import os
 from os.path import exists
 import sys
 import math
+import warnings
 import requests
 import tempfile
 import traceback
 import subprocess
 import numpy as np
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
 from astropy.io import fits, ascii
@@ -26,7 +27,7 @@ from reproject import reproject_interp
 
 class unTimelyCatalogExplorer:
 
-    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False,
+    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False, ignore_warnings=True,
                  catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
                  catalog_index_file='untimely_index-neo7.fits'):
         """
@@ -54,6 +55,8 @@ class unTimelyCatalogExplorer:
         An unTimelyCatalogExplorer instance.
 
         """
+        if ignore_warnings:
+            warnings.simplefilter('ignore', category=Warning)
         self.catalog_base_url = catalog_base_url
         self.catalog_index_file = catalog_index_file
         self.cache = cache
@@ -88,6 +91,7 @@ class unTimelyCatalogExplorer:
             6: 'deblending discouraged here',
             7: 'only "sharp" sources here'
         }
+        plt.rcParams.update({'font.family': 'Arial'})
         os.chdir(directory)
 
     class ImageBucket:
@@ -163,8 +167,6 @@ class unTimelyCatalogExplorer:
 
         if overlay_labels:
             for i in range(len(overlay_label)):
-                # ax.text(overlay_ra[i], overlay_dec[i], overlay_label[i], transform=ax.get_transform('icrs'),
-                #         color=overlay_label_color, size=1)
                 ax.annotate(overlay_label[i], (overlay_ra[i], overlay_dec[i]), xycoords=ax.get_transform('icrs'),
                             annotation_clip=True, color=overlay_label_color, size=1)
 
@@ -194,7 +196,7 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd,qi_fact,saa_sep,moon_masked'
         }
-        r = requests.get(query_url, params=payload)
+        r = requests.get(query_url, params=payload, verify=False)
         allwise = ascii.read(r.text)
 
         payload = {
@@ -206,7 +208,7 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd,qi_fact,saa_sep,moon_masked,qual_frame'
         }
-        r = requests.get(query_url, params=payload)
+        r = requests.get(query_url, params=payload, verify=False)
         neowise = ascii.read(r.text)
 
         # Apply quality constraints
@@ -234,7 +236,7 @@ class unTimelyCatalogExplorer:
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
         download_url = download_url.format(ra=ra, dec=dec, size=size, band=band, epoch=epoch)
         try:
-            return fits.open(download_file(download_url, cache=self.cache, show_progress=self.show_progress, timeout=self.timeout))
+            return fits.open(download_file(download_url, cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
         except Exception:
             return None
 
@@ -339,7 +341,7 @@ class unTimelyCatalogExplorer:
     def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table):
         if not self.show_progress:
             self.disable_print()
-        hdul = fits.open(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout)
+        hdul = fits.open(download_file(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
         if not self.show_progress:
             self.enable_print()
 
@@ -487,7 +489,7 @@ class unTimelyCatalogExplorer:
         if exists(self.catalog_index_file):
             hdul = fits.open(self.catalog_index_file)
         else:
-            hdul = fits.open(self.catalog_base_url + self.catalog_index_file + '.gz', cache=self.cache, show_progress=self.show_progress, timeout=self.timeout)
+            hdul = fits.open(download_file(self.catalog_base_url + self.catalog_index_file + '.gz', cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
             hdul.writeto(self.catalog_index_file)
 
         data = hdul[1].data
@@ -810,7 +812,8 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False):
+    def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False,
+                            legend_location='best'):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -828,6 +831,8 @@ class unTimelyCatalogExplorer:
             Whether to overplot L1b photometry. The default is False.
         bin_l1b_phot : bool, optional
             Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
+        legend_location : str, optional
+            Matplotlib legend location string ('upper left', 'upper right', 'lower left', 'lower right', etc.). The default is 'best'.
 
         Raises
         ------
@@ -920,37 +925,35 @@ class unTimelyCatalogExplorer:
                         e_w1.append(self.std_error(w1_clipped))
                         e_w2.append(self.std_error(w2_clipped))
 
-                plt.errorbar(yr, w1, e_w1, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W1', zorder=0, c='tab:cyan')
-                plt.errorbar(yr, w2, e_w2, lw=1, linestyle='--', markersize=3, marker='o', label='L1b median W2', zorder=1, c='tab:orange')
+                plt.errorbar(yr, w1, e_w1, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W1', zorder=0, c='lightskyblue')
+                plt.errorbar(yr, w2, e_w2, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W2', zorder=1, c='pink')
             else:
                 w1_clipped = sigma_clip(allwise['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
                 w2_clipped = sigma_clip(allwise['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
-                plt.plot(allwise_year, w1_clipped, '.', zorder=0, c='tab:cyan')
-                plt.plot(allwise_year, w2_clipped, '.', zorder=1, c='tab:orange')
+                plt.plot(allwise_year, w1_clipped, '.', zorder=0, c='lightskyblue')
+                plt.plot(allwise_year, w2_clipped, '.', zorder=1, c='pink')
 
                 w1_clipped = sigma_clip(neowise['w1mpro'], sigma=sigma, maxiters=maxiters)
                 w2_clipped = sigma_clip(neowise['w2mpro'], sigma=sigma, maxiters=maxiters)
-                plt.plot(neowise_year, w1_clipped, '.', label='L1b W1', zorder=0, c='tab:cyan')
-                plt.plot(neowise_year, w2_clipped, '.', label='L1b W2', zorder=1, c='tab:orange')
+                plt.plot(neowise_year, w1_clipped, '.', label='L1b W1', zorder=0, c='lightskyblue')
+                plt.plot(neowise_year, w2_clipped, '.', label='L1b W2', zorder=1, c='pink')
 
-            plt.xticks(rotation=45)
-            plt.xticks(range(2010, 2023, 1))
-        else:
-            plt.xticks(range(2010, 2021, 1))
+            # plt.xticks(rotation=45)
 
-        alpha = 0.7 if overplot_l1b_phot else 1.0
         plt.errorbar(Time(phot_table_w1['mjdmean'], format='mjd').jyear, phot_table_w1['mag'], yerr=phot_table_w1['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W1', zorder=2, c='tab:blue', alpha=alpha)
+                     lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W1', zorder=2, c='blue')
         plt.errorbar(Time(phot_table_w2['mjdmean'], format='mjd').jyear, phot_table_w2['mag'], yerr=phot_table_w2['dmag'],
-                     lw=1, linestyle='--', markersize=3, marker='o', label='unTimely W2', zorder=3, c='tab:red', alpha=alpha)
+                     lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W2', zorder=3, c='red')
 
         if yticks:
             plt.yticks(yticks)
         plt.xlabel('Year')
         plt.ylabel('Magnitude (mag)')
-        plt.legend(loc='best')
         plt.gca().invert_yaxis()
-        plt.grid(color='grey', alpha=0.5, linestyle='-.', linewidth=0.2, axis='both')
+        plt.grid(color='grey', alpha=0.3, linestyle='-.', linewidth=0.2, axis='both')
+        plt.tick_params(axis='both', length=0)
+        lgnd = plt.legend(loc=legend_location)
+        lgnd.get_frame().set_boxstyle('Square')
 
         # Save light curves plot
         filename = 'unTimely_Catalog_light_curves_' + self.create_obj_name(ra, dec) + '.' + file_format
@@ -1027,6 +1030,7 @@ class unTimelyCatalogExplorer:
         overlay_radius = 5
         red = (255, 0, 0)
         green = (0, 128, 0)
+        font = ImageFont.truetype("arial.ttf", 12)
 
         # Create animated GIF - W1 with overlays
         images = []
@@ -1070,7 +1074,7 @@ class unTimelyCatalogExplorer:
                          start=0, end=360, fill=green, width=stroke_width)
 
             # Draw epoch text
-            draw.text((10, 10), 'W1 ' + year_obs, red)
+            draw.text((10, 10), 'W1 ' + year_obs, red, font=font)
 
             images.append(rgb_image)
 
@@ -1122,7 +1126,7 @@ class unTimelyCatalogExplorer:
                          start=0, end=360, fill=green, width=stroke_width)
 
             # Draw epoch text
-            draw.text((10, 10), 'W2 ' + year_obs, red)
+            draw.text((10, 10), 'W2 ' + year_obs, red, font=font)
 
             images.append(rgb_image)
 
@@ -1161,7 +1165,7 @@ class unTimelyCatalogExplorer:
                      start=0, end=360, fill=red, width=stroke_width)
 
             # Draw epoch text
-            draw.text((10, 10), 'W1+W2 ' + year_obs, red)
+            draw.text((10, 10), 'W1+W2 ' + year_obs, red, font=font)
 
             images.append(rgb_image)
 
