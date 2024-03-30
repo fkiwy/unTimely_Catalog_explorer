@@ -2,17 +2,21 @@ import os
 from os.path import exists
 import sys
 import math
+import time
+import certifi
 import warnings
-import requests
 import tempfile
 import traceback
 import subprocess
+import multiprocessing
 import numpy as np
+import pandas as pd
+import urllib.parse
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
-from astropy.io import fits, ascii
-from astropy.table import Table
+from astropy.io import fits
+from astropy.table import Table, vstack
 from astropy.stats import sigma_clip
 from astropy.visualization import make_lupton_rgb
 from astropy.nddata import Cutout2D
@@ -27,7 +31,7 @@ from reproject import reproject_interp
 
 class unTimelyCatalogExplorer:
 
-    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False, ignore_warnings=True,
+    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, allow_insecure=False, suppress_console_output=False, ignore_warnings=True,
                  catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
                  catalog_index_file='untimely_index-neo7.fits'):
         """
@@ -62,6 +66,7 @@ class unTimelyCatalogExplorer:
         self.cache = cache
         self.show_progress = False if suppress_console_output else show_progress
         self.timeout = timeout
+        self.allow_insecure = allow_insecure
         self.suppress_console_output = suppress_console_output
         self.open_file = False
         self.file_format = 'pdf'
@@ -91,8 +96,9 @@ class unTimelyCatalogExplorer:
             6: 'deblending discouraged here',
             7: 'only "sharp" sources here'
         }
-        plt.rcParams.update({'font.family': 'Arial'})
+        plt.rcParams.update({'font.size': 8, 'font.family': 'Arial'})
         os.chdir(directory)
+        certifi.where()
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None, forward=None):
@@ -185,7 +191,7 @@ class unTimelyCatalogExplorer:
         return vmin, vmax
 
     def get_l1b_photometry(self, ra, dec, radius):
-        query_url = 'http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query'
+        query_url = 'http://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query?'
 
         payload = {
             'catalog': 'allwise_p3as_mep',
@@ -196,8 +202,8 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd,qi_fact,saa_sep,moon_masked'
         }
-        r = requests.get(query_url, params=payload, verify=False)
-        allwise = ascii.read(r.text)
+        r = download_file(query_url + urllib.parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
+        allwise = Table.read(r, format='ascii')
 
         payload = {
             'catalog': 'neowiser_p1bs_psd',
@@ -208,8 +214,8 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd,qi_fact,saa_sep,moon_masked,qual_frame'
         }
-        r = requests.get(query_url, params=payload, verify=False)
-        neowise = ascii.read(r.text)
+        r = download_file(query_url + urllib.parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
+        neowise = Table.read(r, format='ascii')
 
         # Apply quality constraints
         """
@@ -236,7 +242,7 @@ class unTimelyCatalogExplorer:
         download_url = 'http://byw.tools/cutout?ra={ra}&dec={dec}&size={size}&band={band}&epoch={epoch}'
         download_url = download_url.format(ra=ra, dec=dec, size=size, band=band, epoch=epoch)
         try:
-            return fits.open(download_file(download_url, cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
+            return fits.open(download_file(download_url, cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure))
         except Exception:
             return None
 
@@ -275,9 +281,9 @@ class unTimelyCatalogExplorer:
     def enable_print(self):
         sys.stdout = self.stdout
 
-    def printout(self, message):
+    def printout(self, *args):
         if not self.suppress_console_output:
-            print(message)
+            print(' '.join([str(arg) for arg in args]))
 
     def print_result_table_info(self):
         info_table = Table(names=['Name', 'Type', 'Unit', 'Description'], dtype=['S', 'S', 'S', 'S'])
@@ -338,10 +344,11 @@ class unTimelyCatalogExplorer:
 
         return match, x, y
 
-    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table):
+    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table, epoch=None, forward=None):
         if not self.show_progress:
             self.disable_print()
-        hdul = fits.open(download_file(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
+        hdul = fits.open(download_file(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache,
+                         show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure))
         if not self.show_progress:
             self.enable_print()
 
@@ -448,10 +455,13 @@ class unTimelyCatalogExplorer:
                 else:
                     coords_w2.append((source_label, row['ra'], row['dec']))
 
-        return coords_w1, coords_w2
+        if epoch is None:
+            return coords_w1, coords_w2
+        else:
+            return coords_w1, coords_w2, epoch, forward, result_table
 
     def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, show_result_table_in_browser=False,
-                              save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
+                              save_result_table=True, result_table_format='ascii', result_table_extension='dat', multi_processing=False):
         """
         Search the catalog by coordinates (box search).
 
@@ -489,7 +499,8 @@ class unTimelyCatalogExplorer:
         if exists(self.catalog_index_file):
             hdul = fits.open(self.catalog_index_file)
         else:
-            hdul = fits.open(download_file(self.catalog_base_url + self.catalog_index_file + '.gz', cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=True))
+            hdul = fits.open(download_file(self.catalog_base_url + self.catalog_index_file + '.gz', cache=self.cache,
+                             show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure))
             hdul.writeto(self.catalog_index_file)
 
         data = hdul[1].data
@@ -626,16 +637,53 @@ class unTimelyCatalogExplorer:
             )
 
             self.printout('Scanning individual catalog files ...')
-            for i in range(1, len(catalog_files)):
-                catalog_filename = catalog_files[i][0]
-                epoch = catalog_files[i][1]
-                forward = catalog_files[i][2]
-                self.printout(catalog_filename)
-                coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table)
-                if len(coords_w1) > 0:
-                    self.w1_overlays.append((coords_w1, epoch, forward))
-                if len(coords_w2) > 0:
-                    self.w2_overlays.append((coords_w2, epoch, forward))
+
+            start_time = time.time()
+
+            if multi_processing:
+                tasks = []
+                for i in range(1, len(catalog_files)):
+                    catalog_filename = catalog_files[i][0]
+                    epoch = catalog_files[i][1]
+                    forward = catalog_files[i][2]
+                    tasks.append((catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table, epoch, forward))
+
+                # Multi-processing
+                # print("Number of CPU: ", multiprocessing.cpu_count())
+                pool = multiprocessing.Pool()
+                results = pool.starmap(self.find_catalog_entries, tasks)
+                pool.close()
+                pool.join()
+
+                coords_w1 = [row[0] for row in results]
+                coords_w2 = [row[1] for row in results]
+                epoch = [row[2] for row in results]
+                forward = [row[3] for row in results]
+                tables = [row[4] for row in results]
+
+                for i in range(len(coords_w1)):
+                    if len(coords_w1[i]) > 0:
+                        self.w1_overlays.append((coords_w1[i], epoch[i], forward[i]))
+                for i in range(len(coords_w2)):
+                    if len(coords_w2[i]) > 0:
+                        self.w2_overlays.append((coords_w2[i], epoch[i], forward[i]))
+
+                result_table = vstack(tables)
+            else:
+                for i in range(1, len(catalog_files)):
+                    catalog_filename = catalog_files[i][0]
+                    epoch = catalog_files[i][1]
+                    forward = catalog_files[i][2]
+                    self.printout(catalog_filename)
+                    coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table)
+                    if len(coords_w1) > 0:
+                        self.w1_overlays.append((coords_w1, epoch, forward))
+                    if len(coords_w2) > 0:
+                        self.w2_overlays.append((coords_w2, epoch, forward))
+
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print("Execution time: {:.2f} seconds".format(elapsed_time))
 
             self.result_table = result_table
 
@@ -813,7 +861,7 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False,
-                            legend_location='best'):
+                            variability_threshold=0.1, legend_location='best', plot_statistics=True):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -831,6 +879,8 @@ class unTimelyCatalogExplorer:
             Whether to overplot L1b photometry. The default is False.
         bin_l1b_phot : bool, optional
             Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
+        variability_threshold: float, optional
+            The source is considered as variable if max_magnitude - mean_magnitude >= variability_threshold. The default is 0.1.
         legend_location : str, optional
             Matplotlib legend location string ('upper left', 'upper right', 'lower left', 'lower right', etc.). The default is 'best'.
 
@@ -878,6 +928,25 @@ class unTimelyCatalogExplorer:
         # Create plot
         plt.figure(figsize=(8, 4))
         plt.title(self.create_j_designation(ra, dec))
+
+        yr1 = Time(phot_table_w1['mjdmean'], format='mjd').jyear
+        yr2 = Time(phot_table_w2['mjdmean'], format='mjd').jyear
+        w1 = phot_table_w1['mag'].value
+        w2 = phot_table_w2['mag'].value
+        e_w1 = phot_table_w1['dmag'].value
+        e_w2 = phot_table_w2['dmag'].value
+
+        plt.errorbar(yr1, w1, e_w1, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W1', zorder=2, c='blue')
+        plt.errorbar(yr2, w2, e_w2, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W2', zorder=3, c='red')
+
+        if plot_statistics:
+            stats, peaks = self.create_light_curve_stats(yr1, w1, e_w1, 'unTimely W1', 'blue', variability_threshold)
+            text = '\n unTimely W1 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+            plt.text(0, -0.1, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
+
+            stats, peaks = self.create_light_curve_stats(yr2, w2, e_w2, 'unTimely W2', 'red', variability_threshold)
+            text = '\n unTimely W2 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+            plt.text(0, -0.15, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
 
         if overplot_l1b_phot:
             allwise, neowise = self.get_l1b_photometry(ra, dec, photometry_radius)
@@ -927,23 +996,25 @@ class unTimelyCatalogExplorer:
 
                 plt.errorbar(yr, w1, e_w1, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W1', zorder=0, c='lightskyblue')
                 plt.errorbar(yr, w2, e_w2, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W2', zorder=1, c='pink')
+
+                if plot_statistics:
+                    stats, peaks = self.create_light_curve_stats(yr, w1, e_w1, 'L1b median W1', 'lightskyblue', variability_threshold)
+                    text = '\n L1b median W1 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+                    plt.text(0, -0.2, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
+
+                    stats, peaks = self.create_light_curve_stats(yr, w2, e_w2, 'L1b median W2', 'pink', variability_threshold)
+                    text = '\n L1b median W2 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+                    plt.text(0, -0.25, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
             else:
                 w1_clipped = sigma_clip(allwise['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
                 w2_clipped = sigma_clip(allwise['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
-                plt.plot(allwise_year, w1_clipped, '.', zorder=0, c='lightskyblue')
-                plt.plot(allwise_year, w2_clipped, '.', zorder=1, c='pink')
+                plt.scatter(allwise_year, w1_clipped, s=3, zorder=0, c='lightskyblue')
+                plt.scatter(allwise_year, w2_clipped, s=3, zorder=1, c='pink')
 
                 w1_clipped = sigma_clip(neowise['w1mpro'], sigma=sigma, maxiters=maxiters)
                 w2_clipped = sigma_clip(neowise['w2mpro'], sigma=sigma, maxiters=maxiters)
-                plt.plot(neowise_year, w1_clipped, '.', label='L1b W1', zorder=0, c='lightskyblue')
-                plt.plot(neowise_year, w2_clipped, '.', label='L1b W2', zorder=1, c='pink')
-
-            # plt.xticks(rotation=45)
-
-        plt.errorbar(Time(phot_table_w1['mjdmean'], format='mjd').jyear, phot_table_w1['mag'], yerr=phot_table_w1['dmag'],
-                     lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W1', zorder=2, c='blue')
-        plt.errorbar(Time(phot_table_w2['mjdmean'], format='mjd').jyear, phot_table_w2['mag'], yerr=phot_table_w2['dmag'],
-                     lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='unTimely W2', zorder=3, c='red')
+                plt.scatter(neowise_year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
+                plt.scatter(neowise_year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
 
         if yticks:
             plt.yticks(yticks)
@@ -964,7 +1035,141 @@ class unTimelyCatalogExplorer:
         if open_file:
             self.start_file(filename)
 
-    def create_image_blinks(self, blink_duration=300, image_zoom=10, image_contrast=None, separate_scan_dir=False, display_blinks=False):
+    def create_light_curve_stats(self, time, magnitude, error, band, color, variability_threshold):
+        data = pd.DataFrame({'time': time, 'magnitude': magnitude})
+
+        # Calculate statistics
+        min_magnitude = data['magnitude'].min()
+        max_magnitude = data['magnitude'].max()
+        mean_magnitude = data['magnitude'].mean()
+        median_magnitude = data['magnitude'].median()
+        # standard_deviation = data['magnitude'].std()
+        # weighted_std = self.weighted_std(magnitude, error)
+
+        # Calculate variability index
+        var_index = round(self.variability_index(magnitude, error), 3)
+
+        stats = {
+            'min': '{:.3f}'.format(min_magnitude),
+            'max': '{:.3f}'.format(max_magnitude),
+            'max-min': '{:.3f}'.format(max_magnitude - min_magnitude),
+            'mean': '{:.3f}'.format(mean_magnitude),
+            'median': '{:.3f}'.format(median_magnitude),
+            # 'std': '{:.3f}'.format(standard_deviation),
+            # 'weighted std': '{:.3f}'.format(weighted_std),
+            'variability index': '{:.3f}'.format(var_index)
+        }
+
+        stats = ', '.join(f'{key}={value}' for key, value in stats.items())
+
+        if max_magnitude - mean_magnitude < variability_threshold:
+            self.printout(f'Magnitude fluctuations are below the specified/default threshold (variability_threshold={variability_threshold}).')
+            return stats, 'none'
+
+        # Find peaks in the magnitude data
+        from scipy.signal import find_peaks
+        peaks, _ = find_peaks(data['magnitude']*-1, height=-mean_magnitude+variability_threshold)
+
+        # Get time and magnitude values at peak positions
+        peak_times = data['time'].iloc[peaks]
+        peak_magnitudes = data['magnitude'].iloc[peaks]
+
+        plt.scatter(peak_times, peak_magnitudes, s=20, facecolors='none', edgecolors=color, linewidth=0.5, label=f'{band} Peaks')
+
+        peak_dates = [Time(time, format='jyear').datetime.date().strftime('%Y-%m-%d') for time in peak_times]
+        peak_magnitudes = peak_magnitudes.tolist()
+
+        peaks = {}
+        for date, magnitude in zip(peak_dates, peak_magnitudes):
+            peaks[date] = '{:.3f}'.format(magnitude)
+
+        peaks = ', '.join(f'{key}: {value}' for key, value in peaks.items())
+
+        return stats, peaks
+
+    def variability_index(self, magnitudes, errors):
+        magnitudes = np.array(magnitudes)
+        errors = np.array(errors)
+
+        # Calculate the weighted mean magnitude
+        weighted_mean = np.sum(magnitudes / errors ** 2) / np.sum(1.0 / errors ** 2)
+
+        # Calculate the variability index
+        var_index = np.sqrt(np.sum(((magnitudes - weighted_mean) / errors) ** 2) / (len(magnitudes) - 1))
+
+        return var_index
+
+    def weighted_std(self, values, weights):
+        """
+        Calculate the weighted standard deviation of a dataset.
+
+        Parameters:
+        values (array-like): The dataset values.
+        weights (array-like): The weights corresponding to each value.
+
+        Returns:
+        float: The weighted standard deviation.
+        """
+        # Calculate the weighted mean
+        weighted_mean = np.average(values, weights=weights)
+
+        # Calculate the weighted sum of squares of differences
+        weighted_sum_squares_diff = np.sum(weights * (values - weighted_mean) ** 2)
+
+        # Calculate the sum of weights
+        sum_weights = np.sum(weights)
+
+        # Calculate the weighted standard deviation
+        weighted_std = np.sqrt(weighted_sum_squares_diff / sum_weights)
+
+        return weighted_std
+
+    def von_neumann_ratio(values):
+        """
+        Calculate the von Neumann ratio of a dataset.
+
+        Parameters:
+        values (array-like): The dataset values.
+
+        Returns:
+        float: The von Neumann ratio.
+        """
+        # Calculate the differences between successive values
+        differences = np.diff(values)
+
+        # Calculate the mean square successive difference
+        mean_square_successive_diff = np.mean(differences**2)
+
+        # Calculate the distribution variance
+        distribution_variance = np.var(values)
+
+        # Calculate the von Neumann ratio
+        von_neumann_ratio = mean_square_successive_diff / distribution_variance
+
+        return von_neumann_ratio
+
+    def calculate_iqr(data):
+        """
+        Calculate the Interquartile Range (IQR) of a dataset.
+
+        Parameters:
+        data (array-like): The dataset values.
+
+        Returns:
+        float: The Interquartile Range (IQR).
+        """
+        # Calculate the first quartile (Q1)
+        q1 = np.percentile(data, 25)
+
+        # Calculate the third quartile (Q3)
+        q3 = np.percentile(data, 75)
+
+        # Calculate the Interquartile Range (IQR)
+        iqr = q3 - q1
+
+        return iqr
+
+    def create_image_blinks(self, overlays=False, blink_duration=300, image_zoom=10, image_contrast=None, separate_scan_dir=False, display_blinks=False):
         """
         Create W1 and W2 image blinks with overplotted catalog positions in GIF format.
 
@@ -1060,18 +1265,19 @@ class unTimelyCatalogExplorer:
                      start=0, end=360, fill=red, width=stroke_width)
 
             # Draw catalog overlays
-            overlay_ra = w1_bucket.overlay_ra
-            overlay_dec = w1_bucket.overlay_dec
-            for i in range(len(overlay_ra)):
-                world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
-                x, y = wcs.world_to_pixel(world)
-                x += 0.5
-                y += 0.5
-                x *= image_zoom
-                y *= image_zoom
-                y = h - y
-                draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
-                         start=0, end=360, fill=green, width=stroke_width)
+            if overlays:
+                overlay_ra = w1_bucket.overlay_ra
+                overlay_dec = w1_bucket.overlay_dec
+                for i in range(len(overlay_ra)):
+                    world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
+                    x, y = wcs.world_to_pixel(world)
+                    x += 0.5
+                    y += 0.5
+                    x *= image_zoom
+                    y *= image_zoom
+                    y = h - y
+                    draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
+                             start=0, end=360, fill=green, width=stroke_width)
 
             # Draw epoch text
             draw.text((10, 10), 'W1 ' + year_obs, red, font=font)
@@ -1112,18 +1318,19 @@ class unTimelyCatalogExplorer:
                      start=0, end=360, fill=red, width=stroke_width)
 
             # Draw catalog overlays
-            overlay_ra = w2_bucket.overlay_ra
-            overlay_dec = w2_bucket.overlay_dec
-            for i in range(len(overlay_ra)):
-                world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
-                x, y = wcs.world_to_pixel(world)
-                x += 0.5
-                y += 0.5
-                x *= image_zoom
-                y *= image_zoom
-                y = h - y
-                draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
-                         start=0, end=360, fill=green, width=stroke_width)
+            if overlays:
+                overlay_ra = w2_bucket.overlay_ra
+                overlay_dec = w2_bucket.overlay_dec
+                for i in range(len(overlay_ra)):
+                    world = SkyCoord(overlay_ra[i]*u.deg, overlay_dec[i]*u.deg)
+                    x, y = wcs.world_to_pixel(world)
+                    x += 0.5
+                    y += 0.5
+                    x *= image_zoom
+                    y *= image_zoom
+                    y = h - y
+                    draw.arc((x-overlay_radius, y-overlay_radius, x+overlay_radius, y+overlay_radius),
+                             start=0, end=360, fill=green, width=stroke_width)
 
             # Draw epoch text
             draw.text((10, 10), 'W2 ' + year_obs, red, font=font)

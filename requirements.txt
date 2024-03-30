@@ -1,6 +1,7 @@
 numpy
 matplotlib
 pillow
-requests
+certifi
+scipy
 astropy
 reproject
