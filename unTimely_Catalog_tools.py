@@ -1247,7 +1247,11 @@ class unTimelyCatalogExplorer:
         overlay_radius = 5
         red = (255, 0, 0)
         green = (0, 128, 0)
-        font = ImageFont.truetype("arial.ttf", 12)
+
+        try:
+            font = ImageFont.truetype('arial.ttf', 12)
+        except OSError:
+            font = ImageFont.load_default()
 
         # Create animated GIF - W1 with overlays
         images = []
