@@ -63,20 +63,20 @@ Note that the default output directory for the finder charts, image blinks and l
 
 ### Result table:
 ```
-|source_label|target_dist|        x|        y|      flux|          dx|          dy|     dflux|        qf|     rchi2|  fracflux|   fluxlbs|  dfluxlbs|     fwhm|  spread_model|dspread_model|   fluxiso|          xiso|          yiso|         sky|       ra|      dec|coadd_id|band|          unwise_detid|  nm|primary|flags_unwise|flags_info|epoch|forward|   mjdmin|   mjdmax|  mjdmean|       mag|       dmag|
-|        char|      float|    float|    float|     float|       float|       float|     float|     float|     float|     float|     float|     float|    float|         float|        float|     float|         float|         float|       float|    float|    float|    char|long|                  char|long|   long|        long|      long| long|   long|    float|    float|    float|     float|      float|
-|            |     arcsec|      pix|      pix|      nMgy|         pix|         pix|      nMgy|          |          |          |      nMgy|      nMgy|      pix|              |             |          |              |              |        nMgy|      deg|      deg|        |    |                      |    |       |            |          |     |       |        d|        d|        d|       mag|        mag|
-|        null|       null|     null|     null|      null|        null|        null|      null|      null|      null|      null|      null|      null|     null|          null|         null|      null|          null|          null|        null|     null|     null|    null|null|                  null|null|   null|        null|      null| null|   null|     null|     null|     null|      null|       null|
-          1.1   41.133976 267.98914 366.07266  1478.2817   0.02711302  0.026857046  23.787693  0.9999999    1.45462  0.9730243  1476.4236  24.258665 2.4941554  -7.581711e-05  0.0006082071  1478.2878  -0.0029756483  -0.0013511414  0.045344237 26.970234  23.65304 0264p242    1 0264p242w1o0003274e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  14.578548 0.019259011 
-          1.2   24.311607 270.75854 354.26965  186.80829   0.21058543   0.20848638  22.858791  0.9999999 0.40986335 0.85064834  182.78297  23.324059   2.49984    0.002097249   0.004466529  186.80855   0.0067806835    0.018961437  -0.20955364 26.980085  23.65512 0264p242    1 0264p242w1o0003307e000   11       1            0          0     0       0 55213.777 55216.355 55215.066   16.84501 0.019311216 
-          1.3   26.611568 272.67844 349.33646   350.6362  0.112922154  0.111713514  23.004868        1.0  0.7470472  0.9601253  341.51666   23.47193  2.502432  0.00046521425  0.0023680562  350.63937   -0.007589876   0.0136228325  -0.45855537 26.984205 23.656572 0264p242    1 0264p242w1o0003336e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  16.150314 0.019302838 
-          1.4   14.474302  277.3332 361.20578   642.6594  0.061838116  0.061267607  23.219679 0.99999994  0.5048074  0.8716953   635.2518  23.687193 2.5000417   0.0020625591  0.0013212693   642.6394    0.013772808    0.041024134  -0.27924097 26.974323 23.660162 0264p242    1 0264p242w1o0003390e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  15.486827 0.019290635 
-          1.5   26.739912 279.12183  346.6229  195.84848   0.20177622   0.19973092  23.160677 0.99999994 0.37018228  0.9257498  199.33455   23.62958 2.5000474   0.0062518716   0.004382402  195.82774   0.0010374679   -0.012010553   -1.0438267  26.98649 23.661486 0264p242    1 0264p242w1o0003413e000   10       1            0          0     0       0 55213.777 55216.355 55215.066  16.792604 0.019293973 
-          1.6  0.87831515  279.6703 356.38605  2937.9165  0.014060003 0.0139493905  24.824362        1.0  3.6525035 0.97762567  2932.1765   25.30369 2.5033457   0.0012370348 0.00031610663  2938.0347    -0.00686241    0.017446637   -0.6429966  26.97835 23.661934 0264p242    1 0264p242w1o0003427e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  13.831381 0.019203572 
-          1.7   31.302246 285.21735 346.58777  349.63837  0.113236874   0.11249279  23.257622        1.0  0.3575519  0.9440686  347.69266  23.729797 2.5018487    0.000954926  0.0024212874   349.5952    0.008859864   -0.010896928   -1.5677048  26.98654 23.666142 0264p242    1 0264p242w1o0003492e000   10       1            0          0     0       0 55213.777 55216.355 55215.066  16.153444 0.019288493 
-          1.8   56.389893 291.25018 373.05084   165.4573   0.23699896   0.23463635   22.81245        1.0 0.71865296 0.99898523  169.73457  23.279415 2.4965863   -0.008771837     0.0052296  165.48672     0.19331563   -0.053440556  -0.75371563  26.96449 23.670828 0264p242    1 0264p242w1o0003565e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  16.979856 0.019313887 
-          1.9   48.941624 295.82776 363.08554  132.05058    0.2975982   0.29347035   22.78306        1.0  0.6937911 0.98462033  142.57121  23.250383 2.4956353  -0.0073519945   0.006480334  132.13405    -0.08966763    -0.56501573   -1.0877496 26.972816 23.674294 0264p242    1 0264p242w1o0003624e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  17.231546 0.019315584 
-         1.10   55.028603 263.89313 343.63528  106.68029   0.36999014    0.3683969  22.931067        1.0 0.59704506 0.91822433  99.514885  23.393208 2.4997027  -0.0054461956   0.007932083  106.65743      0.2900153    -0.20782283  -0.23481975  26.98893 23.649845 0264p242    1 0264p242w1o0026338e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  17.471283 0.019307062 
+|source_label|target_dist|        x|        y|      flux|          dx|          dy|     dflux|        qf|     rchi2|  fracflux|   fluxlbs|  dfluxlbs|     fwhm|  spread_model|dspread_model|   fluxiso|          xiso|          yiso|         sky|       ra|      dec|coadd_id|band|          unwise_detid|  nm|primary|flags_unwise|flags_info|epoch|forward|   mjdmin|   mjdmax|  mjdmean|       mag|        dmag|flags_unwise_bits|flags_unwise_descr|flags_info_bits|flags_info_descr|
+|        char|      float|    float|    float|     float|       float|       float|     float|     float|     float|     float|     float|     float|    float|         float|        float|     float|         float|         float|       float|    float|    float|    char|long|                  char|long|   long|        long|      long| long|   long|    float|    float|    float|     float|       float|             char|              char|           char|            char|
+|            |     arcsec|      pix|      pix|      nMgy|         pix|         pix|      nMgy|          |          |          |      nMgy|      nMgy|      pix|              |             |          |              |              |        nMgy|      deg|      deg|        |    |                      |    |       |            |          |     |       |        d|        d|        d|       mag|         mag|                 |                  |               |                |
+|        null|       null|     null|     null|      null|        null|        null|      null|      null|      null|      null|      null|      null|     null|          null|         null|      null|          null|          null|        null|     null|     null|    null|null|                  null|null|   null|        null|      null| null|   null|     null|     null|     null|      null|        null|             null|              null|           null|            null|
+          1.1  0.87831515  279.6703 356.38605  2937.9165  0.014060003 0.0139493905  24.824362        1.0  3.6525035 0.97762567  2932.1765   25.30369 2.5033457   0.0012370348 0.00031610663  2938.0347    -0.00686241    0.017446637   -0.6429966  26.97835 23.661934 0264p242    1 0264p242w1o0003427e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  13.829902  0.009174345                                                                       
+          1.2    6.800647  278.3556 358.60797  295.64267    0.1356889   0.13655952   23.57525        1.0  1.1573884 0.36883256   290.9348  24.039568 2.5038018    0.004512131  0.0028988284  295.75702     0.03663178    -0.11140295  -0.40257493 26.976494 23.660936 0264p242    1 0264p242w1o0030758e000   10       1            0          0     0       0 55213.777 55216.355 55215.066  16.323082   0.08676343                                                                       
+          1.3   10.734045 276.22272 354.01282  139.53488    0.2820289    0.2787143  22.819721        1.0  0.3663603  0.5460553  136.47597  23.282099 2.4959884  -0.0023428798   0.006013545  139.55301    0.093110986   -0.051865812     -0.50946 26.980318 23.659294 0264p242    1 0264p242w1o0030751e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  17.138292   0.17917164                                                                       
+          1.4   12.830857   282.567 359.72888  250.25577   0.16098073   0.15887521  23.201101        1.0  1.8302455  0.7132105   241.6268  23.660118  2.502495    0.015723884  0.0036360174  250.27533   -0.039657693    -0.03137485   -0.5397417 26.975573 23.664156 0264p242    1 0264p242w1o0026389e000   11       1            0          0     0       0 55213.777 55216.355 55215.066   16.50404   0.10094801                                                                       
+          1.5   14.474302  277.3332 361.20578   642.6594  0.061838116  0.061267607  23.219679 0.99999994  0.5048074  0.8716953   635.2518  23.687193 2.5000417   0.0020625591  0.0013212693   642.6394    0.013772808    0.041024134  -0.27924097 26.974323 23.660162 0264p242    1 0264p242w1o0003390e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  15.480048  0.039245375                                                                       
+          1.6   16.850346 273.78732  358.9083   94.68198   0.41980743   0.41060808  22.843729        1.0 0.46448976  0.5553647  86.752884   23.30474 2.4963253   0.0048452616   0.008926477   94.59819    -0.16292378    -0.05268831  -0.24089655 26.976227 23.657448 0264p242    1 0264p242w1o0030746e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  17.559332    0.2672214                                                                       
+          1.7   24.311607 270.75854 354.26965  186.80829   0.21058543   0.20848638  22.858791  0.9999999 0.40986335 0.85064834  182.78297  23.324059   2.49984    0.002097249   0.004466529  186.80855   0.0067806835    0.018961437  -0.20955364 26.980085  23.65512 0264p242    1 0264p242w1o0003307e000   11       1            0          0     0       0 55213.777 55216.355 55215.066   16.82151   0.13352522                                                                       
+          1.8   25.183413 270.22202 357.05176 117.079636    0.3422278   0.33152387   23.25296  0.9999999  0.5889581 0.74251676 112.012596  23.722586 2.4961278   -0.009067297  0.0075610518  117.14969    -0.08486951    -0.15145485  -0.10735986 26.977764 23.654718 0264p242    1 0264p242w1o0026349e000   10       1            0          0     0       0 55213.777 55216.355 55215.066  17.328796   0.21854028                                                                       
+          1.9   26.611568 272.67844 349.33646   350.6362  0.112922154  0.111713514  23.004868        1.0  0.7470472  0.9601253  341.51666   23.47193  2.502432  0.00046521425  0.0023680562  350.63937   -0.007589876   0.0136228325  -0.45855537 26.984205 23.656572 0264p242    1 0264p242w1o0003336e000   11       1            0          0     0       0 55213.777 55216.355 55215.066  16.137857  0.071336426                                                                       
+         1.10   26.739912 279.12183  346.6229  195.84848   0.20177622   0.19973092  23.160677 0.99999994 0.37018228  0.9257498  199.33455   23.62958 2.5000474   0.0062518716   0.004382402  195.82774   0.0010374679   -0.012010553   -1.0438267  26.98649 23.661486 0264p242    1 0264p242w1o0003413e000   10       1            0          0     0       0 55213.777 55216.355 55215.066  16.770199   0.12900075                                                                       
 ```
 ![Full result table](Example%20output/unTimely_Catalog_search%20results_26.978383%2B23.661691.dat)
 
@@ -131,7 +131,9 @@ flags_info_descr   S32     None   info flags description
 
 ### Light curves:
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691.png)
+![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_L1b.png)
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_median_L1b.png)
+![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_stats.png)
 
 ### Image blinks:
 ![Image blinks - variable](Example%20output/Animated_time_series_w1_26.978383%2B23.661691.gif) | ![Image blinks - color](Example%20output/Animated_time_series_26.978383%2B23.661691.gif)
@@ -158,6 +160,8 @@ Creates an unTimelyCatalogExplorer instance with the given parameters
     Whether to show the file download progress. The default is True.
 - timeout : int, optional  
     Timeout for remote requests in seconds. The default is 300.
+- allow_insecure : bool, optional  
+    Whether to allow downloading files over a TLS/SSL connection even when the server certificate verification failed. The default is False.
 - suppress_console_output : bool, optional  
     Whether to suppress all console output except error messages. The default is False.
 - catalog_base_url : str, optional  
@@ -195,6 +199,9 @@ Search the catalog by coordinates (box search).
     Result table output format. The default is 'ascii'.
 - result_table_extension : str, optional  
     Result table file extension. The default is 'dat'.
+-  multi_processing : bool, optional
+     Whether to allow multi-processing when downloading and scanning unTimely catalog files (faster but higher CPU usage). The default is False.
+     ``unTimelyCatalogExplorer`` methods must be called within following ``if`` statement: ``if __name__ == '__main__':``
 
 #### <ins>Returns</ins>
 Astropy table containing the catalog entries located within a field of view of the specified size at the given coordinates.
@@ -252,10 +259,12 @@ Create light curves using W1 and W2 photometry of all available epochs.
     Whether to overplot L1b photometry. The default is False.
 - bin_l1b_phot : bool, optional  
     Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
-- variability_threshold: float, optional
+- variability_threshold: float, optional  
     The source is considered as variable if max_magnitude - mean_magnitude >= variability_threshold. The default is 0.1.
-- legend_location : str, optional
+- legend_location : str, optional  
     Matplotlib legend location string ('upper left', 'upper right', 'lower left', 'lower right', etc.). The default is 'best'.
+- plot_statistics : bool, optional  
+    Whether to plot magnitude statistics below the light curves figure. The default is False.
 
 #### <ins>Raises</ins>
 Exception if method ``search_by_coordinates`` has not been called first.

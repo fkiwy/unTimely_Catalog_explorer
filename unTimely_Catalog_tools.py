@@ -47,6 +47,9 @@ class unTimelyCatalogExplorer:
             Whether to show the file download progress. The default is True.
         timeout : int, optional
             Timeout for remote requests in seconds. The default is 300.
+        allow_insecure : bool, optional
+            Whether to allow downloading files over a TLS/SSL connection even when the server
+            certificate verification failed. The default is False.
         suppress_console_output : bool, optional
             Whether to suppress all console output except error messages. The default is False.
         catalog_base_url : str, optional
@@ -484,6 +487,9 @@ class unTimelyCatalogExplorer:
             Result table output format. The default is 'ascii'.
         result_table_extension : str, optional
             Result table file extension. The default is 'dat'.
+        multi_processing : bool, optional
+            Whether to allow multi-processing when downloading and scanning unTimely catalog files (faster but higher CPU usage). The default is False.
+            ``unTimelyCatalogExplorer`` methods must be called within following ``if`` statement: ``if __name__ == '__main__':``
 
         Returns
         -------
@@ -861,7 +867,7 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False,
-                            variability_threshold=0.1, legend_location='best', plot_statistics=True):
+                            variability_threshold=0.1, legend_location='best', plot_statistics=False):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -883,6 +889,8 @@ class unTimelyCatalogExplorer:
             The source is considered as variable if max_magnitude - mean_magnitude >= variability_threshold. The default is 0.1.
         legend_location : str, optional
             Matplotlib legend location string ('upper left', 'upper right', 'lower left', 'lower right', etc.). The default is 'best'.
+        plot_statistics : bool, optional
+            Whether to plot magnitude statistics below the light curves figure. The default is False.
 
         Raises
         ------
@@ -1036,38 +1044,62 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_light_curve_stats(self, time, magnitude, error, band, color, variability_threshold):
-        data = pd.DataFrame({'time': time, 'magnitude': magnitude})
+        """
+        self.printout(band + ':')
+
+        # Mean quartiles and differences
+        q1, q2, q3 = self.calculate_mean_quartiles(magnitude)
+        q3_q2 = '{:.3f}'.format(q3 - q2)
+        q2_q1 = '{:.3f}'.format(q2 - q1)
+        q3_q1 = '{:.3f}'.format(q3 - q1)
+        q1 = '{:.3f}'.format(q1)
+        q2 = '{:.3f}'.format(q2)
+        q3 = '{:.3f}'.format(q3)
+        self.printout(f'mean(Q1)={q1}, Q2={q2}, mean(Q3)={q3}, mean(Q3)-q2={q3_q2}, Q2-mean(Q1))={q2_q1}, mean(Q3)-mean(Q1)={q3_q1}')
+
+        # Skewness and Kurtosis
+        from scipy.stats import skew, kurtosis
+        skewness = '{:.3f}'.format(skew(magnitude))
+        kurtosis = '{:.3f}'.format(kurtosis(magnitude))
+        self.printout("Skewness:", skewness)
+        self.printout("Kurtosis:", kurtosis)
+
+        self.printout()
+        """
 
         # Calculate statistics
-        min_magnitude = data['magnitude'].min()
-        max_magnitude = data['magnitude'].max()
-        mean_magnitude = data['magnitude'].mean()
-        median_magnitude = data['magnitude'].median()
-        # standard_deviation = data['magnitude'].std()
-        # weighted_std = self.weighted_std(magnitude, error)
-
-        # Calculate variability index
-        var_index = round(self.variability_index(magnitude, error), 3)
+        min_magnitude = np.min(magnitude)
+        max_magnitude = np.max(magnitude)
+        mean_magnitude = np.mean(magnitude)
+        # median_magnitude = np.median(magnitude)
+        # std = np.std(magnitude)
+        weighted_std = self.weighted_std(magnitude, error)
+        var_index = self.variability_index(magnitude, error)
+        # neumann_ratio = self.von_neumann_ratio(magnitude)
+        # iqr = self.calculate_iqr(magnitude)
 
         stats = {
             'min': '{:.3f}'.format(min_magnitude),
             'max': '{:.3f}'.format(max_magnitude),
             'max-min': '{:.3f}'.format(max_magnitude - min_magnitude),
             'mean': '{:.3f}'.format(mean_magnitude),
-            'median': '{:.3f}'.format(median_magnitude),
-            # 'std': '{:.3f}'.format(standard_deviation),
-            # 'weighted std': '{:.3f}'.format(weighted_std),
-            'variability index': '{:.3f}'.format(var_index)
+            # 'median': '{:.3f}'.format(median_magnitude),
+            # 'std': '{:.3f}'.format(std),
+            'weighted std': '{:.3f}'.format(weighted_std),
+            'variability index': '{:.3f}'.format(var_index),
+            # 'von Neumann ratio': '{:.3f}'.format(neumann_ratio),
+            # 'interquartile range': '{:.3f}'.format(iqr)
         }
 
         stats = ', '.join(f'{key}={value}' for key, value in stats.items())
 
         if max_magnitude - mean_magnitude < variability_threshold:
-            self.printout(f'Magnitude fluctuations are below the specified/default threshold (variability_threshold={variability_threshold}).')
+            self.printout(f'{band} magnitude fluctuations are below the specified/default threshold (variability_threshold={variability_threshold}).')
             return stats, 'none'
 
         # Find peaks in the magnitude data
         from scipy.signal import find_peaks
+        data = pd.DataFrame({'time': time, 'magnitude': magnitude})
         peaks, _ = find_peaks(data['magnitude']*-1, height=-mean_magnitude+variability_threshold)
 
         # Get time and magnitude values at peak positions
@@ -1100,16 +1132,6 @@ class unTimelyCatalogExplorer:
         return var_index
 
     def weighted_std(self, values, weights):
-        """
-        Calculate the weighted standard deviation of a dataset.
-
-        Parameters:
-        values (array-like): The dataset values.
-        weights (array-like): The weights corresponding to each value.
-
-        Returns:
-        float: The weighted standard deviation.
-        """
         # Calculate the weighted mean
         weighted_mean = np.average(values, weights=weights)
 
@@ -1124,16 +1146,7 @@ class unTimelyCatalogExplorer:
 
         return weighted_std
 
-    def von_neumann_ratio(values):
-        """
-        Calculate the von Neumann ratio of a dataset.
-
-        Parameters:
-        values (array-like): The dataset values.
-
-        Returns:
-        float: The von Neumann ratio.
-        """
+    def von_neumann_ratio(self, values):
         # Calculate the differences between successive values
         differences = np.diff(values)
 
@@ -1148,26 +1161,25 @@ class unTimelyCatalogExplorer:
 
         return von_neumann_ratio
 
-    def calculate_iqr(data):
-        """
-        Calculate the Interquartile Range (IQR) of a dataset.
-
-        Parameters:
-        data (array-like): The dataset values.
-
-        Returns:
-        float: The Interquartile Range (IQR).
-        """
+    def calculate_iqr(self, values):
         # Calculate the first quartile (Q1)
-        q1 = np.percentile(data, 25)
+        q1 = np.percentile(values, 25)
 
         # Calculate the third quartile (Q3)
-        q3 = np.percentile(data, 75)
+        q3 = np.percentile(values, 75)
 
         # Calculate the Interquartile Range (IQR)
         iqr = q3 - q1
 
         return iqr
+
+    def calculate_mean_quartiles(self, values):
+        q1 = np.percentile(values, 25)
+        q2 = np.percentile(values, 50)
+        q3 = np.percentile(values, 75)
+        mean_q1 = np.mean([x for x in values if x <= q1])
+        mean_q3 = np.mean([x for x in values if x >= q3])
+        return mean_q1, q2, mean_q3
 
     def create_image_blinks(self, overlays=False, blink_duration=300, image_zoom=10, image_contrast=None, separate_scan_dir=False, display_blinks=False):
         """
