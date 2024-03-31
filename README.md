@@ -14,7 +14,7 @@ The tool allows to:
 
 ## Module dependencies
 
-The Python Standard Library, NumPy, Matplotlib, Pillow (PIL Fork), Certifi, Scipy, Astropy and Reproject (which is an Astropy affiliated package)
+The Python Standard Library, NumPy, Pandas, Matplotlib, Pillow (PIL Fork), Certifi, Scipy, Astropy and Reproject (which is an Astropy affiliated package)
 
 ## Installation
 
@@ -199,7 +199,7 @@ Search the catalog by coordinates (box search).
     Result table output format. The default is 'ascii'.
 - result_table_extension : str, optional  
     Result table file extension. The default is 'dat'.
--  multi_processing : bool, optional
+-  multi_processing : bool, optional  
      Whether to allow multi-processing when downloading and scanning unTimely catalog files (faster but higher CPU usage). The default is False.
      ``unTimelyCatalogExplorer`` methods must be called within following ``if`` statement: ``if __name__ == '__main__':``
 

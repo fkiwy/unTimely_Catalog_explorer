@@ -8,4 +8,4 @@ setup(name='unTimely_Catalog_explorer',
       author_email='frank.kiwy@outlook.com',
       license='MIT',
       py_modules=['unTimely_Catalog_tools'],
-      install_requires=['numpy', 'matplotlib', 'pillow', 'certifi', 'scipy', 'astropy', 'reproject'])
+      install_requires=['numpy', 'pandas', 'matplotlib', 'pillow', 'certifi', 'scipy', 'astropy', 'reproject'])
