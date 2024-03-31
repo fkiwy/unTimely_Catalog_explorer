@@ -129,10 +129,13 @@ flags_info_descr   S32     None   info flags description
 ### Finder charts:
 ![Finder charts](Example%20output/unTimely_Catalog_finder_charts_26.978383%2B23.661691.png)
 
-### Light curves:
+### unTimely light curves:
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691.png)
+#### With L1b photometry
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_L1b.png)
+#### With binned L1b photometry
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_median_L1b.png)
+#### With statistics
 ![Light curves](Example%20output/unTimely_Catalog_light_curves_26.978383%2B23.661691_stats.png)
 
 ### Image blinks:

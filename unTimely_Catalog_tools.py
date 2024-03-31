@@ -2,7 +2,6 @@ import os
 from os.path import exists
 import sys
 import math
-import time
 import certifi
 import warnings
 import tempfile
@@ -644,7 +643,7 @@ class unTimelyCatalogExplorer:
 
             self.printout('Scanning individual catalog files ...')
 
-            start_time = time.time()
+            # start_time = time.time()
 
             if multi_processing:
                 tasks = []
@@ -687,9 +686,9 @@ class unTimelyCatalogExplorer:
                     if len(coords_w2) > 0:
                         self.w2_overlays.append((coords_w2, epoch, forward))
 
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            print("Execution time: {:.2f} seconds".format(elapsed_time))
+            # end_time = time.time()
+            # elapsed_time = end_time - start_time
+            # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
 
             self.result_table = result_table
 
