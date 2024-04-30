@@ -10,7 +10,7 @@ import subprocess
 import multiprocessing
 import numpy as np
 import pandas as pd
-import urllib.parse
+from urllib import parse
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
@@ -204,7 +204,7 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro_ep,w1sigmpro_ep,w2mpro_ep,w2sigmpro_ep,mjd,qi_fact,saa_sep,moon_masked'
         }
-        r = download_file(query_url + urllib.parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
+        r = download_file(query_url + parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
         allwise = Table.read(r, format='ascii')
 
         payload = {
@@ -216,7 +216,7 @@ class unTimelyCatalogExplorer:
             'outfmt': '1',
             'selcols': 'w1mpro,w1sigmpro,w2mpro,w2sigmpro,mjd,qi_fact,saa_sep,moon_masked,qual_frame'
         }
-        r = download_file(query_url + urllib.parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
+        r = download_file(query_url + parse.urlencode(payload), cache=self.cache, show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure)
         neowise = Table.read(r, format='ascii')
 
         # Apply quality constraints
@@ -926,11 +926,11 @@ class unTimelyCatalogExplorer:
 
         # Get W1 photometry
         mask = phot_table['band'] == 1
-        phot_table_w1 = phot_table[mask]
+        phot_table_w1 = self.filter_table_by_min_distance_per_epoch(phot_table[mask])
 
         # Get W2 photometry
         mask = phot_table['band'] == 2
-        phot_table_w2 = phot_table[mask]
+        phot_table_w2 = self.filter_table_by_min_distance_per_epoch(phot_table[mask])
 
         # Create plot
         plt.figure(figsize=(8, 4))
@@ -1041,6 +1041,23 @@ class unTimelyCatalogExplorer:
         # Open saved file
         if open_file:
             self.start_file(filename)
+
+    def filter_table_by_min_distance_per_epoch(self, data_table):
+        # Initialize an empty table to store the filtered results
+        filtered_table = Table(names=data_table.colnames, dtype=data_table.dtype)
+
+        # Iterate over unique epochs
+        for epoch in np.unique(data_table['epoch']):
+            # Select rows corresponding to the current epoch
+            epoch_rows = data_table[data_table['epoch'] == epoch]
+
+            # Find the row with the smallest distance
+            min_distance_row = epoch_rows[np.argmin(epoch_rows['target_dist'])]
+
+            # Append the row with the smallest distance to the filtered table
+            filtered_table.add_row(min_distance_row)
+
+        return filtered_table
 
     def create_light_curve_stats(self, time, magnitude, error, band, color, variability_threshold):
         """
