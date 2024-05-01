@@ -346,7 +346,7 @@ class unTimelyCatalogExplorer:
 
         return match, x, y
 
-    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, result_table, epoch=None, forward=None):
+    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, nearest_neighbor, epoch, forward):
         if not self.show_progress:
             self.disable_print()
         hdul = fits.open(download_file(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache,
@@ -373,6 +373,95 @@ class unTimelyCatalogExplorer:
         coords_w2 = []
 
         object_number = 0
+
+        result_table = Table(names=(
+            'source_label',
+            'target_dist',
+            'x',
+            'y',
+            'flux',
+            'dx',
+            'dy',
+            'dflux',
+            'qf',
+            'rchi2',
+            'fracflux',
+            'fluxlbs',
+            'dfluxlbs',
+            'fwhm',
+            'spread_model',
+            'dspread_model',
+            'fluxiso',
+            'xiso',
+            'yiso',
+            'sky',
+            'ra',
+            'dec',
+            'coadd_id',
+            'band',
+            'unwise_detid',
+            'nm',
+            'primary',
+            'flags_unwise',
+            'flags_info',
+            'epoch',
+            'forward',
+            'mjdmin',
+            'mjdmax',
+            'mjdmean',
+            'mag',
+            'dmag',
+            'flags_unwise_bits',
+            'flags_unwise_descr',
+            'flags_info_bits',
+            'flags_info_descr'
+        ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
+                  'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f',
+                  'S', 'S', 'S', 'S'),
+            units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
+                   '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
+                   'mag', 'mag', '', '', '', ''),
+            descriptions=('Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts',
+                          'Angular distance to the target coordinates',
+                          'x coordinate',
+                          'y coordinate',
+                          'Vega flux',
+                          'x uncertainty',
+                          'y uncertainty',
+                          'formal flux uncertainty',
+                          'PSF-weighted fraction of good pixels',
+                          'PSF-weighted average chi2',
+                          'PSF-weighted fraction of flux from this source',
+                          'FWHM of PSF at source location',
+                          'local-background-subtracted flux',
+                          'formal fluxlbs uncertainty',
+                          'SExtractor-like source size parameter',
+                          'uncertainty in spread_model',
+                          'flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue',
+                          'x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue',
+                          'y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue',
+                          'residual sky at source location',
+                          'R.A.',
+                          'decl.',
+                          'unWISE/AllWISE coadd_id of source',
+                          '1 for W1, 2 for W2',
+                          'detection ID, unique in catalog',
+                          'number of images in coadd at source',
+                          'source located in primary region of coadd',
+                          'unWISE flags at source location',
+                          'additional flags at source location',
+                          'unWISE epoch number',
+                          "boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit",
+                          'MJD value of earliest contributing exposure',
+                          'MJD value of latest contributing exposure',
+                          'mean of MJDMIN and MJDMAX',
+                          'Vega magnitude given by 22.5-2.5log10(flux)',
+                          'magnitude uncertainty',
+                          'unWISE flags bits',
+                          'unWISE flags description',
+                          'info flags bits',
+                          'info flags description')
+        )
 
         for row in table:
             catalog_ra = row['ra']
@@ -457,12 +546,12 @@ class unTimelyCatalogExplorer:
                 else:
                     coords_w2.append((source_label, row['ra'], row['dec']))
 
-        if epoch is None:
-            return coords_w1, coords_w2
-        else:
-            return coords_w1, coords_w2, epoch, forward, result_table
+                if nearest_neighbor:
+                    break
 
-    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, show_result_table_in_browser=False,
+        return coords_w1, coords_w2, epoch, forward, result_table
+
+    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, nearest_neighbor=False, show_result_table_in_browser=False,
                               save_result_table=True, result_table_format='ascii', result_table_extension='dat', multi_processing=False):
         """
         Search the catalog by coordinates (box search).
@@ -478,6 +567,8 @@ class unTimelyCatalogExplorer:
         cone_radius : int, optional
             Cone search radius in arcseconds. If specified, a cone search will be performed (instead of a box search) around the given coordinates within the given radius.
             However, the value of the ``box_size`` parameter still defines the image size of the finder charts and image blinks.
+        nearest_neighbor : bool, optional
+            Whether to include only the nearest detection to the target coordinates in the result table. The default is False.
         show_result_table_in_browser : bool, optional
             Whether to show the result table in your browser (columns can be sorted). The default is False.
         save_result_table : bool, optional
@@ -552,95 +643,6 @@ class unTimelyCatalogExplorer:
         if len(file_series) > 0:
             catalog_files = file_series[0]
 
-            result_table = Table(names=(
-                'source_label',
-                'target_dist',
-                'x',
-                'y',
-                'flux',
-                'dx',
-                'dy',
-                'dflux',
-                'qf',
-                'rchi2',
-                'fracflux',
-                'fluxlbs',
-                'dfluxlbs',
-                'fwhm',
-                'spread_model',
-                'dspread_model',
-                'fluxiso',
-                'xiso',
-                'yiso',
-                'sky',
-                'ra',
-                'dec',
-                'coadd_id',
-                'band',
-                'unwise_detid',
-                'nm',
-                'primary',
-                'flags_unwise',
-                'flags_info',
-                'epoch',
-                'forward',
-                'mjdmin',
-                'mjdmax',
-                'mjdmean',
-                'mag',
-                'dmag',
-                'flags_unwise_bits',
-                'flags_unwise_descr',
-                'flags_info_bits',
-                'flags_info_descr'
-            ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
-                      'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f',
-                      'S', 'S', 'S', 'S'),
-                units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
-                       '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
-                       'mag', 'mag', '', '', '', ''),
-                descriptions=('Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts',
-                              'Angular distance to the target coordinates',
-                              'x coordinate',
-                              'y coordinate',
-                              'Vega flux',
-                              'x uncertainty',
-                              'y uncertainty',
-                              'formal flux uncertainty',
-                              'PSF-weighted fraction of good pixels',
-                              'PSF-weighted average chi2',
-                              'PSF-weighted fraction of flux from this source',
-                              'FWHM of PSF at source location',
-                              'local-background-subtracted flux',
-                              'formal fluxlbs uncertainty',
-                              'SExtractor-like source size parameter',
-                              'uncertainty in spread_model',
-                              'flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue',
-                              'x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue',
-                              'y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue',
-                              'residual sky at source location',
-                              'R.A.',
-                              'decl.',
-                              'unWISE/AllWISE coadd_id of source',
-                              '1 for W1, 2 for W2',
-                              'detection ID, unique in catalog',
-                              'number of images in coadd at source',
-                              'source located in primary region of coadd',
-                              'unWISE flags at source location',
-                              'additional flags at source location',
-                              'unWISE epoch number',
-                              "boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit",
-                              'MJD value of earliest contributing exposure',
-                              'MJD value of latest contributing exposure',
-                              'mean of MJDMIN and MJDMAX',
-                              'Vega magnitude given by 22.5-2.5log10(flux)',
-                              'magnitude uncertainty',
-                              'unWISE flags bits',
-                              'unWISE flags description',
-                              'info flags bits',
-                              'info flags description')
-            )
-
             self.printout('Scanning individual catalog files ...')
 
             # start_time = time.time()
@@ -651,10 +653,10 @@ class unTimelyCatalogExplorer:
                     catalog_filename = catalog_files[i][0]
                     epoch = catalog_files[i][1]
                     forward = catalog_files[i][2]
-                    tasks.append((catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table, epoch, forward))
+                    tasks.append((catalog_filename, i, target_ra, target_dec, box_size, cone_radius, nearest_neighbor, epoch, forward))
 
                 # Multi-processing
-                # print("Number of CPU: ", multiprocessing.cpu_count())
+                # print('Number of CPUs:', multiprocessing.cpu_count())
                 pool = multiprocessing.Pool()
                 results = pool.starmap(self.find_catalog_entries, tasks)
                 pool.close()
@@ -673,33 +675,35 @@ class unTimelyCatalogExplorer:
                     if len(coords_w2[i]) > 0:
                         self.w2_overlays.append((coords_w2[i], epoch[i], forward[i]))
 
-                result_table = vstack(tables)
             else:
+                tables = []
                 for i in range(1, len(catalog_files)):
                     catalog_filename = catalog_files[i][0]
                     epoch = catalog_files[i][1]
                     forward = catalog_files[i][2]
                     self.printout(catalog_filename)
-                    coords_w1, coords_w2 = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size, cone_radius, result_table)
+                    coords_w1, coords_w2, epoch, forward, result_table = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size,
+                                                                                                   cone_radius, nearest_neighbor, epoch, forward)
                     if len(coords_w1) > 0:
                         self.w1_overlays.append((coords_w1, epoch, forward))
                     if len(coords_w2) > 0:
                         self.w2_overlays.append((coords_w2, epoch, forward))
+                    tables.append(result_table)
 
             # end_time = time.time()
             # elapsed_time = end_time - start_time
             # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
 
-            self.result_table = result_table
+            self.result_table = vstack(tables)
 
             if save_result_table:
                 result_file_name = 'unTimely_Catalog_search results_' + self.create_obj_name(target_ra, target_dec) + '.' + result_table_extension
-                result_table.write(result_file_name, format=result_table_format, overwrite=True)
+                self.result_table.write(result_file_name, format=result_table_format, overwrite=True)
 
             if show_result_table_in_browser:
-                result_table.show_in_browser(jsviewer=True)
+                self.result_table.show_in_browser(jsviewer=True)
 
-            return result_table
+            return self.result_table
 
     def create_finder_charts(self, overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                              image_contrast=3, open_file=False, file_format='pdf'):

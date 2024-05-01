@@ -194,6 +194,8 @@ Search the catalog by coordinates (box search).
 - cone_radius : int, optional  
     Cone search radius in arcseconds. If specified, a cone search will be performed (instead of a box search) around the given coordinates within the given radius.
     However, the value of the ``box_size`` parameter still defines the image size of the finder charts and image blinks.
+- nearest_neighbor : bool, optional  
+    Whether to include only the nearest detection to the target coordinates in the result table. The default is False.
 - show_result_table_in_browser : bool, optional  
     Whether to show the result table in your browser (columns can be sorted). The default is False.
 - save_result_table : bool, optional  
