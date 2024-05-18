@@ -29,9 +29,7 @@ from reproject import reproject_interp
 
 class unTimelyCatalogExplorer:
 
-    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, allow_insecure=False, suppress_console_output=False, ignore_warnings=True,
-                 catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
-                 catalog_index_file='untimely_index-neo7.fits'):
+    def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, allow_insecure=False, suppress_console_output=False, ignore_warnings=True):
         """
         Creates an unTimelyCatalogExplorer instance with the given parameters
 
@@ -50,10 +48,6 @@ class unTimelyCatalogExplorer:
             certificate verification failed. The default is False.
         suppress_console_output : bool, optional
             Whether to suppress all console output except error messages. The default is False.
-        catalog_base_url : str, optional
-            Base URL to access the unTimely Catalog. The default is 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'.
-        catalog_index_file : str, optional
-            Catalog index file name. The default is 'untimely_index-neo7.fits'.
 
         Returns
         -------
@@ -62,8 +56,6 @@ class unTimelyCatalogExplorer:
         """
         if ignore_warnings:
             warnings.simplefilter('ignore', category=Warning)
-        self.catalog_base_url = catalog_base_url
-        self.catalog_index_file = catalog_index_file
         self.cache = cache
         self.show_progress = False if suppress_console_output else show_progress
         self.timeout = timeout
@@ -581,8 +573,6 @@ class unTimelyCatalogExplorer:
         if len(region_tbl) == 0:
             self.printout(f'No sources found for given coordinates={target_ra} {target_dec}, box size={box_size}, cone radius={cone_radius}')
             self.result_table = self.init_result_table()
-            self.w1_overlays = []
-            self.w2_overlays = []
         else:
             df = region_tbl.to_pandas()
             self.result_table = self.create_result_table(df, target_ra, target_dec, nearest_neighbor)

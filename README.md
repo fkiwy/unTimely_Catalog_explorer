@@ -39,9 +39,7 @@ The ```create_image_blinks``` method depends on the results of the ```create_fin
 from unTimely_Catalog_tools import unTimelyCatalogExplorer
 import tempfile
 
-ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False,
-                              catalog_base_url='https://unwise.me/data/neo7/untimely-catalog/',
-                              catalog_index_file='untimely_index-neo7.fits')
+ucx = unTimelyCatalogExplorer(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, suppress_console_output=False)
 
 result_table = ucx.search_by_coordinates(26.9783833, 23.6616914, box_size=100, cone_radius=None, show_result_table_in_browser=False,
                                          save_result_table=True, result_table_format='ascii.ipac', result_table_extension='dat')
@@ -148,9 +146,7 @@ flags_info_descr   S32     None   info flags description
 
 ### <kbd>constructor</kbd> `__init__`
 ```python
-__init__(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300,
-         catalog_base_url='https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/',
-         catalog_index_file='untimely_index-neo7.fits'):
+__init__(directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300):
 ```
 Creates an unTimelyCatalogExplorer instance with the given parameters
 
@@ -167,10 +163,6 @@ Creates an unTimelyCatalogExplorer instance with the given parameters
     Whether to allow downloading files over a TLS/SSL connection even when the server certificate verification failed. The default is False.
 - suppress_console_output : bool, optional  
     Whether to suppress all console output except error messages. The default is False.
-- catalog_base_url : str, optional  
-    Base URL to access the unTimely Catalog. The default is 'https://portal.nersc.gov/project/cosmo/data/unwise/neo7/untimely-catalog/'.
-- catalog_index_file : str, optional  
-    Catalog index file name. The default is 'untimely_index-neo7.fits'.
 
 #### <ins>Returns</ins>
 An unTimelyCatalogExplorer instance.
