@@ -1,7 +1,6 @@
 import os
 import sys
 import math
-import hpgeom
 import certifi
 import warnings
 import tempfile
@@ -9,6 +8,7 @@ import traceback
 import subprocess
 import numpy as np
 import pandas as pd
+import hpgeom as hp
 from urllib import parse
 from pyarrow import dataset, compute
 from PIL import Image, ImageOps, ImageDraw, ImageFont
@@ -541,39 +541,57 @@ class unTimelyCatalogExplorer:
         self.box_size = box_size
         self.img_size = round(box_size / self.pixel_scale)
 
-        target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
-        radius = cone_radius * u.arcsec.to(u.deg)
+        size = box_size * u.arcsec.to(u.deg)
 
-        # start_time = time.time()
+        dec_offset = size / 2
+        dec_min, dec_max = target_dec - dec_offset, target_dec + dec_offset  # deg
+        dec_mean = (dec_min + dec_max) / 2
+        ra_offset = math.degrees(math.radians(size) / math.acos(math.radians(dec_mean))) / 2
+        ra_min, ra_max = target_ra - ra_offset, target_ra + ra_offset  # deg
+        polygon_corners = [(ra_min, dec_min), (ra_min, dec_max), (ra_max, dec_max), (ra_max, dec_min)]
 
         partition_healpix_order = 5
-        sample_ds = dataset.parquet_dataset(
+        nside = hp.order_to_nside(partition_healpix_order)
+        polygon_pixels = hp.query_polygon(
+            nside=nside,
+            a=[corner[0] for corner in polygon_corners],
+            b=[corner[1] for corner in polygon_corners],
+            nest=True,
+            inclusive=True
+        )
+
+        parquet_ds = dataset.parquet_dataset(
             'C:/Users/wcq637/Documents/Private/BYW/unTimely/unwise-neo7-time-domain-sample.parquet/_metadata', partitioning='hive'
         )
 
-        healpix_pixels = hpgeom.query_circle(
-            a=target_ra,
-            b=target_dec,
-            radius=radius,
-            nside=hpgeom.order_to_nside(partition_healpix_order),
-            nest=True,
-            inclusive=True,
+        print(polygon_corners)
+
+        region_tbl = parquet_ds.to_table(
+            filter=(compute.field(f'healpix_k{partition_healpix_order}').isin(polygon_pixels)
+                    & (compute.field('ra') > ra_min)
+                    & (compute.field('ra') < ra_max)
+                    & (compute.field('dec') > dec_min)
+                    & (compute.field('dec') < dec_max))
         )
 
-        region_tbl = sample_ds.to_table(
-            # columns=['unwise_detid', 'EPOCH', 'band', 'ra', 'dec'],
-            filter=(compute.field(f'healpix_k{partition_healpix_order}').isin(healpix_pixels)),
-        )
+        print(len(region_tbl))
 
-        region_skycoords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
-        cone_tbl = region_tbl.filter(target_coord.separation(region_skycoords).degree < radius)
-        cone_df = cone_tbl.to_pandas()
+        if cone_radius:
+            radius = cone_radius * u.arcsec.to(u.deg)
+            target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
+            region_coords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
+            region_tbl = region_tbl.filter(target_coord.separation(region_coords).degree < radius)
 
-        # end_time = time.time()
-        # elapsed_time = end_time - start_time
-        # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
+        print(len(region_tbl))
 
-        self.result_table = self.create_result_table(cone_df, target_ra, target_dec, nearest_neighbor)
+        if len(region_tbl) == 0:
+            self.printout(f'No sources found for given coordinates={target_ra} {target_dec}, box size={box_size}, cone radius={cone_radius}')
+            self.result_table = self.init_result_table()
+            self.w1_overlays = []
+            self.w2_overlays = []
+        else:
+            df = region_tbl.to_pandas()
+            self.result_table = self.create_result_table(df, target_ra, target_dec, nearest_neighbor)
 
         if save_result_table:
             result_file_name = 'unTimely_Catalog_search results_' + self.create_obj_name(target_ra, target_dec) + '.' + result_table_extension
@@ -616,8 +634,11 @@ class unTimelyCatalogExplorer:
         None.
 
         """
-        if self.w1_overlays is None and self.w2_overlays is None:
+        if self.result_table is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
+
+        if len(self.result_table) == 0:
+            return
 
         self.printout('Creating finder charts ...')
 
@@ -786,6 +807,9 @@ class unTimelyCatalogExplorer:
         """
         if self.result_table is None:
             raise Exception('Method ``search_by_coordinates`` must be called first.')
+
+        if len(self.result_table) == 0:
+            return
 
         self.printout('Creating light curves ...')
 
@@ -1107,8 +1131,11 @@ class unTimelyCatalogExplorer:
         None.
 
         """
-        if self.w1_images is None and self.w2_images is None:
+        if self.result_table is None:
             raise Exception('Method ``create_finder_charts`` must be called first.')
+
+        if len(self.result_table) == 0:
+            return
 
         self.printout('Creating image blinks ...')
 
