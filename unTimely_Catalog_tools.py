@@ -546,7 +546,7 @@ class unTimelyCatalogExplorer:
         dec_offset = size / 2
         dec_min, dec_max = target_dec - dec_offset, target_dec + dec_offset  # deg
         dec_mean = (dec_min + dec_max) / 2
-        ra_offset = math.degrees(math.radians(size) / math.acos(math.radians(dec_mean))) / 2
+        ra_offset = math.degrees(math.radians(size) / math.cos(math.radians(dec_mean))) / 2
         ra_min, ra_max = target_ra - ra_offset, target_ra + ra_offset  # deg
         polygon_corners = [(ra_min, dec_min), (ra_min, dec_max), (ra_max, dec_max), (ra_max, dec_min)]
 
@@ -564,8 +564,6 @@ class unTimelyCatalogExplorer:
             'C:/Users/wcq637/Documents/Private/BYW/unTimely/unwise-neo7-time-domain-sample.parquet/_metadata', partitioning='hive'
         )
 
-        print(polygon_corners)
-
         region_tbl = parquet_ds.to_table(
             filter=(compute.field(f'healpix_k{partition_healpix_order}').isin(polygon_pixels)
                     & (compute.field('ra') > ra_min)
@@ -574,15 +572,11 @@ class unTimelyCatalogExplorer:
                     & (compute.field('dec') < dec_max))
         )
 
-        print(len(region_tbl))
-
         if cone_radius:
             radius = cone_radius * u.arcsec.to(u.deg)
             target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
             region_coords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
             region_tbl = region_tbl.filter(target_coord.separation(region_coords).degree < radius)
-
-        print(len(region_tbl))
 
         if len(region_tbl) == 0:
             self.printout(f'No sources found for given coordinates={target_ra} {target_dec}, box size={box_size}, cone radius={cone_radius}')
