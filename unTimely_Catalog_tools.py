@@ -1,19 +1,16 @@
 import os
-from os.path import exists
 import sys
 import math
+import hpgeom
 import certifi
 import warnings
 import tempfile
 import traceback
 import subprocess
-import multiprocessing
 import numpy as np
 import pandas as pd
-import hpgeom
-import pyarrow.compute
-import pyarrow.dataset
 from urllib import parse
+from pyarrow import dataset, compute
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
@@ -24,7 +21,6 @@ from astropy.visualization import make_lupton_rgb
 from astropy.nddata import Cutout2D
 from astropy.time import Time
 from astropy.utils.data import download_file
-# from astropy.wcs import WCS
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from reproject.mosaicking import find_optimal_celestial_wcs
@@ -548,7 +544,7 @@ class unTimelyCatalogExplorer:
         # start_time = time.time()
 
         partition_healpix_order = 5
-        sample_ds = pyarrow.dataset.parquet_dataset(
+        sample_ds = dataset.parquet_dataset(
             'C:/Users/wcq637/Documents/Private/BYW/unTimely/unwise-neo7-time-domain-sample.parquet/_metadata', partitioning='hive'
         )
 
@@ -563,7 +559,7 @@ class unTimelyCatalogExplorer:
 
         region_tbl = sample_ds.to_table(
             # columns=['unwise_detid', 'EPOCH', 'band', 'ra', 'dec'],
-            filter=(pyarrow.compute.field(f'healpix_k{partition_healpix_order}').isin(healpix_pixels)),
+            filter=(compute.field(f'healpix_k{partition_healpix_order}').isin(healpix_pixels)),
         )
 
         region_skycoords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
