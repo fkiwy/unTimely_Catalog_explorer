@@ -10,6 +10,9 @@ import subprocess
 import multiprocessing
 import numpy as np
 import pandas as pd
+import hpgeom
+import pyarrow.compute
+import pyarrow.dataset
 from urllib import parse
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
@@ -298,185 +301,125 @@ class unTimelyCatalogExplorer:
             info_table.add_row([col.name, str(col.dtype), str(col.unit), col.description])
         info_table.pprint_all()
 
-    def box_contains_target(self, box_center_ra, box_center_dec, target_ra, target_dec, box_size):
-        # Pre-filtering on ra and dec to avoid cases not well handled by the world to pixel solution
-        d = 1  # Tile size in degrees: 4048 * 2.75 / 3600 = 1.564 deg (1.564 / 2 = 0.782 ~ 1 deg)
-        if abs(box_center_dec - target_dec) > d:
-            return False, 0, 0
-        if -d < target_dec < d and d < abs(box_center_ra - target_ra) < 360 - d:
-            return False, 0, 0
+    def find_catalog_entries(self, df, target_ra, target_dec, nearest_neighbor):
+        table = Table.from_pandas(df)
 
-        # World to pixel
-        ra = math.radians(target_ra)
-        dec = math.radians(target_dec)
-        ra0 = math.radians(box_center_ra)
-        dec0 = math.radians(box_center_dec)
-        cosc = math.sin(dec0) * math.sin(dec) + math.cos(dec0) * math.cos(dec) * math.cos(ra - ra0)
-        x = (math.cos(dec) * math.sin(ra - ra0)) / cosc
-        y = (math.cos(dec0) * math.sin(dec) - math.sin(dec0) * math.cos(dec) * math.cos(ra - ra0)) / cosc
-        scale = 3600 / self.pixel_scale
-        x = math.degrees(x) * -scale
-        y = math.degrees(y) * scale
-        x += box_size/2
-        y += box_size/2
-        y = box_size - y
+        grouped = table.group_by(['band', 'EPOCH'])
 
-        """ Too slow!
-        w = WCS(naxis=2)
-        w.wcs.crpix = [box_size/2, box_size/2]
-        w.wcs.crval = [box_center_ra, box_center_dec]
-        w.wcs.cunit = ['deg', 'deg']
-        w.wcs.ctype = ['RA---TAN', 'DEC--TAN']
-        w.wcs.cdelt = [-0.000763888888889, 0.000763888888889]
-        w.array_shape = [box_size, box_size]
-        x, y = w.world_to_pixel(SkyCoord(target_ra*u.deg, target_dec*u.deg))
-        """
-
-        # Distance to closest edge
-        if x > box_size/2:
-            x = box_size - x
-
-        if y > box_size/2:
-            y = box_size - y
-
-        # Check if box contains target
-        match = True
-        if np.isnan(x) or np.isnan(y) or x < 0 or y < 0:
-            match = False
-
-        return match, x, y
-
-    def find_catalog_entries(self, file_path, file_number, target_ra, target_dec, box_size, cone_radius, nearest_neighbor, epoch, forward):
-        if not self.show_progress:
-            self.disable_print()
-        hdul = fits.open(download_file(self.catalog_base_url + file_path.replace('./', ''), cache=self.cache,
-                         show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure))
-        if not self.show_progress:
-            self.enable_print()
-
-        data = hdul[1].data
-        hdul.close()
-
-        table = Table(data)
         target_coords = SkyCoord([target_ra*u.deg], [target_dec*u.deg])
-        catalog_coords = SkyCoord(table['ra'], table['dec'], unit='deg')
-        target_dist = target_coords.separation(catalog_coords).arcsec
-        table.add_column(target_dist, name='target_dist')
-        table.sort('target_dist')
 
-        if cone_radius:
-            box_size = 2 * cone_radius / self.pixel_scale
-        else:
-            box_size = box_size / self.pixel_scale
+        self.w1_overlays = []
+        self.w2_overlays = []
 
-        coords_w1 = []
-        coords_w2 = []
+        tables = []
 
-        object_number = 0
+        group_number = 0
 
-        result_table = Table(names=(
-            'source_label',
-            'target_dist',
-            'x',
-            'y',
-            'flux',
-            'dx',
-            'dy',
-            'dflux',
-            'qf',
-            'rchi2',
-            'fracflux',
-            'fluxlbs',
-            'dfluxlbs',
-            'fwhm',
-            'spread_model',
-            'dspread_model',
-            'fluxiso',
-            'xiso',
-            'yiso',
-            'sky',
-            'ra',
-            'dec',
-            'coadd_id',
-            'band',
-            'unwise_detid',
-            'nm',
-            'primary',
-            'flags_unwise',
-            'flags_info',
-            'epoch',
-            'forward',
-            'mjdmin',
-            'mjdmax',
-            'mjdmean',
-            'mag',
-            'dmag',
-            'flags_unwise_bits',
-            'flags_unwise_descr',
-            'flags_info_bits',
-            'flags_info_descr'
-        ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
-                  'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f',
-                  'S', 'S', 'S', 'S'),
-            units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
-                   '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
-                   'mag', 'mag', '', '', '', ''),
-            descriptions=('Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts',
-                          'Angular distance to the target coordinates',
-                          'x coordinate',
-                          'y coordinate',
-                          'Vega flux',
-                          'x uncertainty',
-                          'y uncertainty',
-                          'formal flux uncertainty',
-                          'PSF-weighted fraction of good pixels',
-                          'PSF-weighted average chi2',
-                          'PSF-weighted fraction of flux from this source',
-                          'FWHM of PSF at source location',
-                          'local-background-subtracted flux',
-                          'formal fluxlbs uncertainty',
-                          'SExtractor-like source size parameter',
-                          'uncertainty in spread_model',
-                          'flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue',
-                          'x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue',
-                          'y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue',
-                          'residual sky at source location',
-                          'R.A.',
-                          'decl.',
-                          'unWISE/AllWISE coadd_id of source',
-                          '1 for W1, 2 for W2',
-                          'detection ID, unique in catalog',
-                          'number of images in coadd at source',
-                          'source located in primary region of coadd',
-                          'unWISE flags at source location',
-                          'additional flags at source location',
-                          'unWISE epoch number',
-                          "boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit",
-                          'MJD value of earliest contributing exposure',
-                          'MJD value of latest contributing exposure',
-                          'mean of MJDMIN and MJDMAX',
-                          'Vega magnitude given by 22.5-2.5log10(flux)',
-                          'magnitude uncertainty',
-                          'unWISE flags bits',
-                          'unWISE flags description',
-                          'info flags bits',
-                          'info flags description')
-        )
+        for group in grouped.groups:
+            result_table = Table(names=(
+                'source_label',
+                'target_dist',
+                'x',
+                'y',
+                'flux',
+                'dx',
+                'dy',
+                'dflux',
+                'qf',
+                'rchi2',
+                'fracflux',
+                'fluxlbs',
+                'dfluxlbs',
+                'fwhm',
+                'spread_model',
+                'dspread_model',
+                'fluxiso',
+                'xiso',
+                'yiso',
+                'sky',
+                'ra',
+                'dec',
+                'coadd_id',
+                'band',
+                'unwise_detid',
+                'nm',
+                'primary',
+                'flags_unwise',
+                'flags_info',
+                'epoch',
+                'forward',
+                'mjdmin',
+                'mjdmax',
+                'mjdmean',
+                'mag',
+                'dmag',
+                'flags_unwise_bits',
+                'flags_unwise_descr',
+                'flags_info_bits',
+                'flags_info_descr'
+            ), dtype=('S', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f',
+                      'f', 'f', 'f', 'f', 'S', 'i', 'S', 'i', 'i', 'i', 'i', 'i', 'i', 'f', 'f', 'f', 'f', 'f',
+                      'S', 'S', 'S', 'S'),
+                units=('', 'arcsec', 'pix', 'pix', 'nMgy', 'pix', 'pix', 'nMgy', '', '', '', 'nMgy', 'nMgy', 'pix',
+                       '', '', '', '', '', 'nMgy', 'deg', 'deg', '', '', '', '', '', '', '', '', '', 'd', 'd', 'd',
+                       'mag', 'mag', '', '', '', ''),
+                descriptions=('Unique source label within a specific result set that can be used to retrieve the corresponding source on the finder charts',
+                              'Angular distance to the target coordinates',
+                              'x coordinate',
+                              'y coordinate',
+                              'Vega flux',
+                              'x uncertainty',
+                              'y uncertainty',
+                              'formal flux uncertainty',
+                              'PSF-weighted fraction of good pixels',
+                              'PSF-weighted average chi2',
+                              'PSF-weighted fraction of flux from this source',
+                              'FWHM of PSF at source location',
+                              'local-background-subtracted flux',
+                              'formal fluxlbs uncertainty',
+                              'SExtractor-like source size parameter',
+                              'uncertainty in spread_model',
+                              'flux derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary flux indicates a convergence issue',
+                              'x coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary x indicates a convergence issue',
+                              'y coordinate derived from linear least squares fit to neighbor-subtracted image; significant difference from ordinary y indicates a convergence issue',
+                              'residual sky at source location',
+                              'R.A.',
+                              'decl.',
+                              'unWISE/AllWISE coadd_id of source',
+                              '1 for W1, 2 for W2',
+                              'detection ID, unique in catalog',
+                              'number of images in coadd at source',
+                              'source located in primary region of coadd',
+                              'unWISE flags at source location',
+                              'additional flags at source location',
+                              'unWISE epoch number',
+                              "boolean, were input frames acquired pointing forward (1) or backward (0) along Earth's orbit",
+                              'MJD value of earliest contributing exposure',
+                              'MJD value of latest contributing exposure',
+                              'mean of MJDMIN and MJDMAX',
+                              'Vega magnitude given by 22.5-2.5log10(flux)',
+                              'magnitude uncertainty',
+                              'unWISE flags bits',
+                              'unWISE flags description',
+                              'info flags bits',
+                              'info flags description')
+            )
 
-        for row in table:
-            catalog_ra = row['ra']
-            catalog_dec = row['dec']
-            target_dist = row['target_dist']
+            catalog_coords = SkyCoord(group['ra'], group['dec'], unit='deg')
+            target_dist = target_coords.separation(catalog_coords).arcsec
+            group.add_column(target_dist, name='target_dist')
+            group.sort('target_dist')
 
-            if cone_radius and target_dist > cone_radius:
-                continue
+            coords_w1 = []
+            coords_w2 = []
 
-            match, _, _ = self.box_contains_target(target_ra, target_dec, catalog_ra, catalog_dec, box_size + 2)
+            group_number += 1
+            object_number = 0
 
-            if match:
+            for row in group:
                 object_number += 1
-                source_label = str(file_number) + '.' + str(object_number)
-                band = row['band']
+                source_label = str(group_number) + '.' + str(object_number)
+
                 """
                 From Schlafly et al. 2019:
                     Fluxes and corresponding uncertainties are given in linear flux units, specifically, in Vega nanomaggies (nMgy; Finkbeiner et al. 2004).
@@ -484,7 +427,7 @@ class unTimelyCatalogExplorer:
                     The agreement between unWISE and AllWISE magnitudes can be improved by subtracting 4 mmag and 32 mmag from W1 and W2.
                 """
                 # Calculate Vega magnitude from flux
-                # flux_corr = 4 if band == 1 else 32
+                # flux_corr = 4 if row['band'] == 1 else 32
                 flux = row['flux']  # - flux_corr
                 mag = self.calculate_magnitude(flux)
                 if np.isnan(mag):
@@ -500,7 +443,7 @@ class unTimelyCatalogExplorer:
 
                 result_table.add_row((
                     source_label,
-                    target_dist,
+                    row['target_dist'],
                     row['x'],
                     row['y'],
                     row['flux'],
@@ -541,7 +484,7 @@ class unTimelyCatalogExplorer:
                     flags_info_descr
                 ))
 
-                if band == 1:
+                if row['band'] == 1:
                     coords_w1.append((source_label, row['ra'], row['dec']))
                 else:
                     coords_w2.append((source_label, row['ra'], row['dec']))
@@ -549,7 +492,14 @@ class unTimelyCatalogExplorer:
                 if nearest_neighbor:
                     break
 
-        return coords_w1, coords_w2, epoch, forward, result_table
+            tables.append(result_table)
+
+            if group[0]['band'] == 1:
+                self.w1_overlays.append((coords_w1, group[0]['EPOCH'],  group[0]['FORWARD']))
+            else:
+                self.w2_overlays.append((coords_w2, group[0]['EPOCH'],  group[0]['FORWARD']))
+
+        return vstack(tables)
 
     def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, nearest_neighbor=False, show_result_table_in_browser=False,
                               save_result_table=True, result_table_format='ascii', result_table_extension='dat', multi_processing=False):
@@ -592,118 +542,48 @@ class unTimelyCatalogExplorer:
         self.box_size = box_size
         self.img_size = round(box_size / self.pixel_scale)
 
-        if exists(self.catalog_index_file):
-            hdul = fits.open(self.catalog_index_file)
-        else:
-            hdul = fits.open(download_file(self.catalog_base_url + self.catalog_index_file + '.gz', cache=self.cache,
-                             show_progress=self.show_progress, timeout=self.timeout, allow_insecure=self.allow_insecure))
-            hdul.writeto(self.catalog_index_file)
+        target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
+        radius = cone_radius * u.arcsec.to(u.deg)
 
-        data = hdul[1].data
-        hdul.close()
+        # start_time = time.time()
 
-        table = Table(data)
+        partition_healpix_order = 5
+        sample_ds = pyarrow.dataset.parquet_dataset(
+            'C:/Users/wcq637/Documents/Private/BYW/unTimely/unwise-neo7-time-domain-sample.parquet/_metadata', partitioning='hive'
+        )
 
-        file_series = []
-        tile_catalog_files = None
+        healpix_pixels = hpgeom.query_circle(
+            a=target_ra,
+            b=target_dec,
+            radius=radius,
+            nside=hpgeom.order_to_nside(partition_healpix_order),
+            nest=True,
+            inclusive=True,
+        )
 
-        prev_coadd_id = table[0]['COADD_ID']
+        region_tbl = sample_ds.to_table(
+            # columns=['unwise_detid', 'EPOCH', 'band', 'ra', 'dec'],
+            filter=(pyarrow.compute.field(f'healpix_k{partition_healpix_order}').isin(healpix_pixels)),
+        )
 
-        self.printout('Scanning catalog index file ...')
+        region_skycoords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
+        cone_tbl = region_tbl.filter(target_coord.separation(region_skycoords).degree < radius)
+        cone_df = cone_tbl.to_pandas()
 
-        for row in table:
-            epoch = row['EPOCH']
-            forward = row['FORWARD']
-            coadd_id = row['COADD_ID']
-            catalog_filename = row['CATALOG_FILENAME']
-            tile_center_ra = row['RA']
-            tile_center_dec = row['DEC']
+        # end_time = time.time()
+        # elapsed_time = end_time - start_time
+        # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
 
-            match, x, y = self.box_contains_target(tile_center_ra, tile_center_dec, target_ra, target_dec, 2048)
+        self.result_table = self.find_catalog_entries(cone_df, target_ra, target_dec, nearest_neighbor)
 
-            if match:
-                if coadd_id != prev_coadd_id:
-                    if tile_catalog_files:
-                        file_series.append(tile_catalog_files)
-                    tile_catalog_files = []
-                    xy = x * y
-                    tile_catalog_files.append(xy)
+        if save_result_table:
+            result_file_name = 'unTimely_Catalog_search results_' + self.create_obj_name(target_ra, target_dec) + '.' + result_table_extension
+            self.result_table.write(result_file_name, format=result_table_format, overwrite=True)
 
-                tile_catalog_files.append((catalog_filename, epoch, forward))
+        if show_result_table_in_browser:
+            self.result_table.show_in_browser(jsviewer=True)
 
-            prev_coadd_id = coadd_id
-
-        file_series.append(tile_catalog_files)
-
-        file_series.sort(key=lambda x: x[0], reverse=True)
-
-        self.w1_overlays = []
-        self.w2_overlays = []
-
-        if len(file_series) > 0:
-            catalog_files = file_series[0]
-
-            self.printout('Scanning individual catalog files ...')
-
-            # start_time = time.time()
-
-            if multi_processing:
-                tasks = []
-                for i in range(1, len(catalog_files)):
-                    catalog_filename = catalog_files[i][0]
-                    epoch = catalog_files[i][1]
-                    forward = catalog_files[i][2]
-                    tasks.append((catalog_filename, i, target_ra, target_dec, box_size, cone_radius, nearest_neighbor, epoch, forward))
-
-                # Multi-processing
-                # print('Number of CPUs:', multiprocessing.cpu_count())
-                pool = multiprocessing.Pool()
-                results = pool.starmap(self.find_catalog_entries, tasks)
-                pool.close()
-                pool.join()
-
-                coords_w1 = [row[0] for row in results]
-                coords_w2 = [row[1] for row in results]
-                epoch = [row[2] for row in results]
-                forward = [row[3] for row in results]
-                tables = [row[4] for row in results]
-
-                for i in range(len(coords_w1)):
-                    if len(coords_w1[i]) > 0:
-                        self.w1_overlays.append((coords_w1[i], epoch[i], forward[i]))
-                for i in range(len(coords_w2)):
-                    if len(coords_w2[i]) > 0:
-                        self.w2_overlays.append((coords_w2[i], epoch[i], forward[i]))
-
-            else:
-                tables = []
-                for i in range(1, len(catalog_files)):
-                    catalog_filename = catalog_files[i][0]
-                    epoch = catalog_files[i][1]
-                    forward = catalog_files[i][2]
-                    self.printout(catalog_filename)
-                    coords_w1, coords_w2, epoch, forward, result_table = self.find_catalog_entries(catalog_filename, i, target_ra, target_dec, box_size,
-                                                                                                   cone_radius, nearest_neighbor, epoch, forward)
-                    if len(coords_w1) > 0:
-                        self.w1_overlays.append((coords_w1, epoch, forward))
-                    if len(coords_w2) > 0:
-                        self.w2_overlays.append((coords_w2, epoch, forward))
-                    tables.append(result_table)
-
-            # end_time = time.time()
-            # elapsed_time = end_time - start_time
-            # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
-
-            self.result_table = vstack(tables)
-
-            if save_result_table:
-                result_file_name = 'unTimely_Catalog_search results_' + self.create_obj_name(target_ra, target_dec) + '.' + result_table_extension
-                self.result_table.write(result_file_name, format=result_table_format, overwrite=True)
-
-            if show_result_table_in_browser:
-                self.result_table.show_in_browser(jsviewer=True)
-
-            return self.result_table
+        return self.result_table
 
     def create_finder_charts(self, overlays=True, overlay_color='green', overlay_labels=False, overlay_label_color='red',
                              image_contrast=3, open_file=False, file_format='pdf'):
