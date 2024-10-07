@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import math
 import certifi
 import warnings
@@ -527,7 +528,9 @@ class unTimelyCatalogExplorer:
             Result table containing the catalog entries located within a field of view of the specified size at the given coordinates.
 
         """
-        self.printout('Gathering data (may take several minutes) ...')
+        self.printout('Querying unTimely catalog (may take several minutes) ...')
+
+        start_time = time.time()
 
         self.target_ra = target_ra
         self.target_dec = target_dec
@@ -585,6 +588,10 @@ class unTimelyCatalogExplorer:
 
         if show_result_table_in_browser:
             self.result_table.show_in_browser(jsviewer=True)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
 
         return self.result_table
 

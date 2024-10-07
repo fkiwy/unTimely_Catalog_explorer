@@ -6,7 +6,7 @@
 
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
-This version of the tool uses data hosted on AWS available in Apache Parquet, partitioned by HEALPix order 5.
+This version of the tool queries the unTimely catalog via Apache Parquet files hosted on AWS.
 
 The tool allows to:
 - search the catalog by coordinates (box or cone search) ```search_by_coordinates(ra, dec)```,
