@@ -9,8 +9,10 @@ import subprocess
 import numpy as np
 import pandas as pd
 import hpgeom as hp
+import pyarrow.fs
+import pyarrow.compute
+import pyarrow.dataset
 from urllib import parse
-from pyarrow import dataset, compute
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
@@ -493,7 +495,7 @@ class unTimelyCatalogExplorer:
         return vstack(tables)
 
     def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, nearest_neighbor=False, show_result_table_in_browser=False,
-                              save_result_table=True, result_table_format='ascii', result_table_extension='dat', multi_processing=False):
+                              save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
         """
         Search the catalog by coordinates (box search).
 
@@ -518,9 +520,6 @@ class unTimelyCatalogExplorer:
             Result table output format. The default is 'ascii'.
         result_table_extension : str, optional
             Result table file extension. The default is 'dat'.
-        multi_processing : bool, optional
-            Whether to allow multi-processing when downloading and scanning unTimely catalog files (faster but higher CPU usage). The default is False.
-            ``unTimelyCatalogExplorer`` methods must be called within following ``if`` statement: ``if __name__ == '__main__':``
 
         Returns
         -------
@@ -528,6 +527,8 @@ class unTimelyCatalogExplorer:
             Result table containing the catalog entries located within a field of view of the specified size at the given coordinates.
 
         """
+        self.printout('Gathering data (may take several minutes) ...')
+
         self.target_ra = target_ra
         self.target_dec = target_dec
         self.box_size = box_size
@@ -542,8 +543,8 @@ class unTimelyCatalogExplorer:
         ra_min, ra_max = target_ra - ra_offset, target_ra + ra_offset  # deg
         polygon_corners = [(ra_min, dec_min), (ra_min, dec_max), (ra_max, dec_max), (ra_max, dec_min)]
 
-        partition_healpix_order = 5
-        nside = hp.order_to_nside(partition_healpix_order)
+        K = 5  # HEALPix order at which the dataset is partitioned
+        nside = hp.order_to_nside(K)
         polygon_pixels = hp.query_polygon(
             nside=nside,
             a=[corner[0] for corner in polygon_corners],
@@ -552,16 +553,17 @@ class unTimelyCatalogExplorer:
             inclusive=True
         )
 
-        parquet_ds = dataset.parquet_dataset(
-            'C:/Users/wcq637/Documents/Private/BYW/unTimely/unwise-neo7-time-domain-sample.parquet/_metadata', partitioning='hive'
-        )
+        fs = pyarrow.fs.S3FileSystem(region='us-west-2')
+        bucket = 'nasa-irsa-wise'
+        catalog_root = f'{bucket}/unwise/neo7/catalogs/time_domain/healpix_k{K}/unwise-neo7-time_domain-healpix_k{K}.parquet'
+        parquet_ds = pyarrow.dataset.parquet_dataset(f'{catalog_root}/_metadata', filesystem=fs, partitioning='hive')
 
         region_tbl = parquet_ds.to_table(
-            filter=(compute.field(f'healpix_k{partition_healpix_order}').isin(polygon_pixels)
-                    & (compute.field('ra') > ra_min)
-                    & (compute.field('ra') < ra_max)
-                    & (compute.field('dec') > dec_min)
-                    & (compute.field('dec') < dec_max))
+            filter=(pyarrow.compute.field(f'healpix_k{K}').isin(polygon_pixels)
+                    & (pyarrow.compute.field('ra') > ra_min)
+                    & (pyarrow.compute.field('ra') < ra_max)
+                    & (pyarrow.compute.field('dec') > dec_min)
+                    & (pyarrow.compute.field('dec') < dec_max))
         )
 
         if cone_radius:

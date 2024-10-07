@@ -3,9 +3,7 @@ from unTimely_Catalog_tools import unTimelyCatalogExplorer
 target_ra = 24.244145
 target_dec = 47.8580834
 
-ucx = unTimelyCatalogExplorer(directory='unTimely_Catalog_tools_output', cache=False, show_progress=True, timeout=300, suppress_console_output=False,
-                              catalog_base_url='https://unwise.me/data/neo7/untimely-catalog/',
-                              catalog_index_file='untimely_index-neo7.fits')
+ucx = unTimelyCatalogExplorer(directory='unTimely_Catalog_tools_output', cache=False, show_progress=True, timeout=300, suppress_console_output=False)
 
 result_table = ucx.search_by_coordinates(target_ra, target_dec, box_size=100, cone_radius=5, show_result_table_in_browser=False,
                                          save_result_table=True, result_table_format='ipac', result_table_extension='txt')

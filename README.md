@@ -6,6 +6,8 @@
 
 A search and visualization tool for the unTimely Catalog[[1]](#1), a full-sky, time-domain unWISE catalog.
 
+This version of the tool uses data hosted on AWS available in Apache Parquet, partitioned by HEALPix order 5.
+
 The tool allows to:
 - search the catalog by coordinates (box or cone search) ```search_by_coordinates(ra, dec)```,
 - create finder charts for W1 and W2 at each epoch with overplotted catalog positions (overlays) ```create_finder_charts()```,
@@ -196,9 +198,6 @@ Search the catalog by coordinates (box search).
     Result table output format. The default is 'ascii'.
 - result_table_extension : str, optional  
     Result table file extension. The default is 'dat'.
--  multi_processing : bool, optional  
-     Whether to allow multi-processing when downloading and scanning unTimely catalog files (faster but higher CPU usage). The default is False.
-     ``unTimelyCatalogExplorer`` methods must be called within following ``if`` statement: ``if __name__ == '__main__':``
 
 #### <ins>Returns</ins>
 Astropy table containing the catalog entries located within a field of view of the specified size at the given coordinates.
