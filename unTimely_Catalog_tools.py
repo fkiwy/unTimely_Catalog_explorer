@@ -2,6 +2,7 @@ import os
 from os.path import exists
 import sys
 import math
+import time
 import certifi
 import warnings
 import tempfile
@@ -587,6 +588,8 @@ class unTimelyCatalogExplorer:
             Result table containing the catalog entries located within a field of view of the specified size at the given coordinates.
 
         """
+        start_time = time.time()
+
         self.target_ra = target_ra
         self.target_dec = target_dec
         self.box_size = box_size
@@ -645,8 +648,6 @@ class unTimelyCatalogExplorer:
 
             self.printout('Scanning individual catalog files ...')
 
-            # start_time = time.time()
-
             if multi_processing:
                 tasks = []
                 for i in range(1, len(catalog_files)):
@@ -690,10 +691,6 @@ class unTimelyCatalogExplorer:
                         self.w2_overlays.append((coords_w2, epoch, forward))
                     tables.append(result_table)
 
-            # end_time = time.time()
-            # elapsed_time = end_time - start_time
-            # self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
-
             self.result_table = vstack(tables)
 
             if save_result_table:
@@ -702,6 +699,10 @@ class unTimelyCatalogExplorer:
 
             if show_result_table_in_browser:
                 self.result_table.show_in_browser(jsviewer=True)
+
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            self.printout('Execution time: {:.2f} seconds'.format(elapsed_time))
 
             return self.result_table
 
