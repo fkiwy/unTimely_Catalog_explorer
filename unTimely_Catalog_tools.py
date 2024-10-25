@@ -30,6 +30,9 @@ from reproject.mosaicking import find_optimal_celestial_wcs
 from reproject import reproject_interp
 
 
+K = 5  # HEALPix order at which the dataset is partitioned
+
+
 class unTimelyCatalogExplorer:
 
     def __init__(self, directory=tempfile.gettempdir(), cache=True, show_progress=True, timeout=300, allow_insecure=False, suppress_console_output=False, ignore_warnings=True):
@@ -95,6 +98,12 @@ class unTimelyCatalogExplorer:
         plt.rcParams.update({'font.size': 8, 'font.family': 'Arial'})
         os.chdir(directory)
         certifi.where()
+
+        self.printout('Setting up unTimely catalog search ...')
+        fs = pyarrow.fs.S3FileSystem(region='us-west-2')
+        bucket = 'nasa-irsa-wise'
+        catalog_root = f'{bucket}/unwise/neo7/catalogs/time_domain/healpix_k{K}/unwise-neo7-time_domain-healpix_k{K}.parquet'
+        self.parquet_ds = pyarrow.dataset.parquet_dataset(f'{catalog_root}/_metadata', filesystem=fs, partitioning='hive')
 
     class ImageBucket:
         def __init__(self, data, x, y, band, year_obs, wcs, overlay_label, overlay_ra=None, overlay_dec=None, forward=None):
@@ -528,7 +537,7 @@ class unTimelyCatalogExplorer:
             Result table containing the catalog entries located within a field of view of the specified size at the given coordinates.
 
         """
-        self.printout('Querying unTimely catalog (may take several minutes) ...')
+        self.printout('Querying unTimely catalog ...')
 
         start_time = time.time()
 
@@ -537,49 +546,31 @@ class unTimelyCatalogExplorer:
         self.box_size = box_size
         self.img_size = round(box_size / self.pixel_scale)
 
-        size = box_size * u.arcsec.to(u.deg)
+        search_radius = (box_size * math.sqrt(2) / 2) * u.arcsec.to(u.deg)
 
-        dec_offset = size / 2
-        dec_min, dec_max = target_dec - dec_offset, target_dec + dec_offset  # deg
-        dec_mean = (dec_min + dec_max) / 2
-        ra_offset = math.degrees(math.radians(size) / math.cos(math.radians(dec_mean))) / 2
-        ra_min, ra_max = target_ra - ra_offset, target_ra + ra_offset  # deg
-        polygon_corners = [(ra_min, dec_min), (ra_min, dec_max), (ra_max, dec_max), (ra_max, dec_min)]
-
-        K = 5  # HEALPix order at which the dataset is partitioned
-        nside = hp.order_to_nside(K)
-        polygon_pixels = hp.query_polygon(
-            nside=nside,
-            a=[corner[0] for corner in polygon_corners],
-            b=[corner[1] for corner in polygon_corners],
+        cone_pixels = hp.query_circle(
+            nside=hp.order_to_nside(K),
+            a=target_ra,
+            b=target_dec,
+            radius=search_radius,
             nest=True,
             inclusive=True
         )
 
-        fs = pyarrow.fs.S3FileSystem(region='us-west-2')
-        bucket = 'nasa-irsa-wise'
-        catalog_root = f'{bucket}/unwise/neo7/catalogs/time_domain/healpix_k{K}/unwise-neo7-time_domain-healpix_k{K}.parquet'
-        parquet_ds = pyarrow.dataset.parquet_dataset(f'{catalog_root}/_metadata', filesystem=fs, partitioning='hive')
-
-        region_tbl = parquet_ds.to_table(
-            filter=(pyarrow.compute.field(f'healpix_k{K}').isin(polygon_pixels)
-                    & (pyarrow.compute.field('ra') > ra_min)
-                    & (pyarrow.compute.field('ra') < ra_max)
-                    & (pyarrow.compute.field('dec') > dec_min)
-                    & (pyarrow.compute.field('dec') < dec_max))
+        result_tbl = self.parquet_ds.to_table(
+            filter=(pyarrow.compute.field(f'healpix_k{K}').isin(cone_pixels))
         )
 
-        if cone_radius:
-            radius = cone_radius * u.arcsec.to(u.deg)
-            target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
-            region_coords = SkyCoord(ra=region_tbl['ra'] * u.degree, dec=region_tbl['dec'] * u.degree)
-            region_tbl = region_tbl.filter(target_coord.separation(region_coords).degree < radius)
+        radius = cone_radius * u.arcsec.to(u.deg) if cone_radius else search_radius
+        target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
+        region_coords = SkyCoord(ra=result_tbl['ra'] * u.degree, dec=result_tbl['dec'] * u.degree)
+        result_tbl = result_tbl.filter(target_coord.separation(region_coords).degree < radius)
 
-        if len(region_tbl) == 0:
+        if len(result_tbl) == 0:
             self.printout(f'No sources found for given coordinates={target_ra} {target_dec}, box size={box_size}, cone radius={cone_radius}')
             self.result_table = self.init_result_table()
         else:
-            df = region_tbl.to_pandas()
+            df = result_tbl.to_pandas()
             self.result_table = self.create_result_table(df, target_ra, target_dec, nearest_neighbor)
 
         if save_result_table:
