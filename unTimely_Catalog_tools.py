@@ -394,6 +394,17 @@ class unTimelyCatalogExplorer:
     def create_result_table(self, df, target_ra, target_dec, nearest_neighbor):
         table = Table.from_pandas(df)
 
+        # Group by column 'A' and count the number of rows in each group
+        data_grouped = table.group_by('coadd_id')
+        group_counts = [(key, len(group)) for key, group in zip(data_grouped.groups.keys['coadd_id'], data_grouped.groups)]
+
+        # Find the group with the most rows
+        most_frequent_group = max(group_counts, key=lambda x: x[1])[0]
+
+        # Filter data based on rows with the most frequent group value in column 'coadd_id'
+        table = table[table['coadd_id'] == most_frequent_group]
+
+        # Group the filtered table by columns ['band', 'EPOCH']
         grouped = table.group_by(['band', 'EPOCH'])
 
         target_coords = SkyCoord([target_ra*u.deg], [target_dec*u.deg])
@@ -504,8 +515,8 @@ class unTimelyCatalogExplorer:
 
         return vstack(tables)
 
-    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, nearest_neighbor=False, show_result_table_in_browser=False,
-                              save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
+    def search_by_coordinates(self, target_ra, target_dec, box_size=100, cone_radius=None, nearest_neighbor=False, apply_additional_search_filter=True,
+                              show_result_table_in_browser=False, save_result_table=True, result_table_format='ascii', result_table_extension='dat'):
         """
         Search the catalog by coordinates (box search).
 
@@ -557,9 +568,37 @@ class unTimelyCatalogExplorer:
             inclusive=True
         )
 
-        result_tbl = self.parquet_ds.to_table(
-            filter=(pyarrow.compute.field(f'healpix_k{K}').isin(cone_pixels))
-        )
+        if apply_additional_search_filter:
+            dec_offset = (box_size / 2) * u.arcsec.to(u.deg)
+            ra_offset = dec_offset / math.cos(math.radians(target_dec))
+
+            dec_min, dec_max = target_dec - dec_offset, target_dec + dec_offset
+            ra_min, ra_max = target_ra - ra_offset, target_ra + ra_offset
+
+            dec_min = max(dec_min, -90)
+            dec_max = min(dec_max, 90)
+
+            ra_min = ra_min % 360
+            ra_max = ra_max % 360
+
+            if ra_min > ra_max:
+                search_filter = (
+                    pyarrow.compute.field(f'healpix_k{K}').isin(cone_pixels)
+                    & ((pyarrow.compute.field('ra') > ra_min) | (pyarrow.compute.field('ra') < ra_max))
+                    & ((pyarrow.compute.field('dec') > dec_min) & (pyarrow.compute.field('dec') < dec_max))
+                )
+            else:
+                search_filter = (
+                    pyarrow.compute.field(f'healpix_k{K}').isin(cone_pixels)
+                    & ((pyarrow.compute.field('ra') > ra_min) & (pyarrow.compute.field('ra') < ra_max))
+                    & ((pyarrow.compute.field('dec') > dec_min) & (pyarrow.compute.field('dec') < dec_max))
+                )
+        else:
+            search_filter = (
+                pyarrow.compute.field(f'healpix_k{K}').isin(cone_pixels)
+            )
+
+        result_tbl = self.parquet_ds.to_table(filter=search_filter)
 
         radius = cone_radius * u.arcsec.to(u.deg) if cone_radius else search_radius
         target_coord = SkyCoord(ra=target_ra * u.degree, dec=target_dec * u.degree)
