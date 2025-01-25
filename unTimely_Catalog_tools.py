@@ -983,7 +983,7 @@ class unTimelyCatalogExplorer:
                 phot_table.write(result_file_name, format=self.result_table_format, overwrite=True)
 
             sigma, maxiters = 3, None
-            phot_table_year = phot_table['year']
+            year = phot_table['year']
 
             if bin_l1b_phot:
                 yr = []
@@ -993,7 +993,7 @@ class unTimelyCatalogExplorer:
                 e_w2 = []
 
                 if len(phot_table) > 0:
-                    year_bin = np.trunc(phot_table_year / 0.5)
+                    year_bin = np.trunc(year / 0.5)
                     grouped = phot_table.group_by(year_bin)
 
                     for group in grouped.groups:
@@ -1019,8 +1019,8 @@ class unTimelyCatalogExplorer:
             else:
                 w1_clipped = sigma_clip(phot_table['w1mpro'], sigma=sigma, maxiters=maxiters)
                 w2_clipped = sigma_clip(phot_table['w2mpro'], sigma=sigma, maxiters=maxiters)
-                plt.scatter(phot_table_year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
-                plt.scatter(phot_table_year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
+                plt.scatter(year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
+                plt.scatter(year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
 
         if yticks:
             plt.yticks(yticks)
