@@ -264,6 +264,8 @@ Create light curves using W1 and W2 photometry of all available epochs.
     Whether to overplot L1b photometry. The default is False.
 - bin_l1b_phot : bool, optional  
     Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
+- save_l1b_phot : bool, optional  
+    Whether to save the L1b photometry table to the directory specified in the constructor ``unTimelyCatalogExplorer(directory=)``. The default is False.
 - variability_threshold: float, optional  
     The source is considered as variable if max_magnitude - mean_magnitude >= variability_threshold. The default is 0.1.
 - legend_location : str, optional  

@@ -236,7 +236,18 @@ class unTimelyCatalogExplorer:
         ]
         """
 
-        return allwise, neowise
+        allwise.rename_column('w1mpro_ep', 'w1mpro')
+        allwise.rename_column('w1sigmpro_ep', 'w1sigmpro')
+        allwise.rename_column('w2mpro_ep', 'w2mpro')
+        allwise.rename_column('w2sigmpro_ep', 'w2sigmpro')
+        allwise['qual_frame'] = np.nan
+
+        table = vstack([allwise, neowise])
+        table['mjd'].unit = 'd'
+        table['year'] = np.round(Time(table['mjd'], format='mjd').jyear, 7)
+        table.sort('mjd')
+
+        return table
 
     def std_error(self, data):
         return np.ma.std(data) / np.ma.sqrt(len(data))
@@ -594,6 +605,8 @@ class unTimelyCatalogExplorer:
         self.target_dec = target_dec
         self.box_size = box_size
         self.img_size = round(box_size / self.pixel_scale)
+        self.result_table_format = result_table_format
+        self.result_table_extension = result_table_extension
 
         if exists(self.catalog_index_file):
             hdul = fits.open(self.catalog_index_file)
@@ -871,7 +884,7 @@ class unTimelyCatalogExplorer:
             self.start_file(filename)
 
     def create_light_curves(self, photometry_radius=5, yticks=None, open_file=None, file_format=None, overplot_l1b_phot=False, bin_l1b_phot=False,
-                            variability_threshold=0.1, legend_location='best', plot_statistics=False):
+                            save_l1b_phot=False, variability_threshold=0.1, legend_location='best', plot_statistics=False):
         """
         Create light curves using W1 and W2 photometry of all available epochs.
 
@@ -889,6 +902,8 @@ class unTimelyCatalogExplorer:
             Whether to overplot L1b photometry. The default is False.
         bin_l1b_phot : bool, optional
             Whether to bin L1b photometry by sky pass and plot the median magnitude. The default is False.
+        save_l1b_phot : bool, optional
+            Whether to save the L1b photometry table to the directory specified in the constructor ``unTimelyCatalogExplorer(directory=)``. The default is False.
         variability_threshold: float, optional
             The source is considered as variable if max_magnitude - mean_magnitude >= variability_threshold. The default is 0.1.
         legend_location : str, optional
@@ -961,15 +976,14 @@ class unTimelyCatalogExplorer:
             plt.text(0, -0.15, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
 
         if overplot_l1b_phot:
-            allwise, neowise = self.get_l1b_photometry(ra, dec, photometry_radius)
-            allwise['mjd'].unit = 'd'
-            neowise['mjd'].unit = 'd'
+            phot_table = self.get_l1b_photometry(ra, dec, photometry_radius)
 
-            allwise_year = Time(allwise['mjd'], format='mjd').jyear
-            neowise_year = Time(neowise['mjd'], format='mjd').jyear
+            if save_l1b_phot:
+                result_file_name = 'l1b_phot_table_' + self.create_obj_name(ra, dec) + '.' + self.result_table_extension
+                phot_table.write(result_file_name, format=self.result_table_format, overwrite=True)
 
-            sigma = 3
-            maxiters = None
+            sigma, maxiters = 3, None
+            phot_table_year = phot_table['year']
 
             if bin_l1b_phot:
                 yr = []
@@ -978,24 +992,9 @@ class unTimelyCatalogExplorer:
                 e_w1 = []
                 e_w2 = []
 
-                if len(allwise) > 0:
-                    allwise.add_column(allwise_year, name='year')
-                    year_bin = np.trunc(allwise_year / 0.5)
-                    grouped = allwise.group_by(year_bin)
-
-                    for group in grouped.groups:
-                        w1_clipped = sigma_clip(group['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
-                        w2_clipped = sigma_clip(group['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
-                        yr.append(np.ma.median(group['year']))
-                        w1.append(np.ma.median(w1_clipped))
-                        w2.append(np.ma.median(w2_clipped))
-                        e_w1.append(self.std_error(w1_clipped))
-                        e_w2.append(self.std_error(w2_clipped))
-
-                if len(neowise) > 0:
-                    neowise.add_column(neowise_year, name='year')
-                    year_bin = np.trunc(neowise_year / 0.5)
-                    grouped = neowise.group_by(year_bin)
+                if len(phot_table) > 0:
+                    year_bin = np.trunc(phot_table_year / 0.5)
+                    grouped = phot_table.group_by(year_bin)
 
                     for group in grouped.groups:
                         w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
@@ -1018,15 +1017,10 @@ class unTimelyCatalogExplorer:
                     text = '\n L1b median W2 - Statistics: ' + stats + ' Notable peaks: ' + peaks
                     plt.text(0, -0.25, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
             else:
-                w1_clipped = sigma_clip(allwise['w1mpro_ep'], sigma=sigma, maxiters=maxiters)
-                w2_clipped = sigma_clip(allwise['w2mpro_ep'], sigma=sigma, maxiters=maxiters)
-                plt.scatter(allwise_year, w1_clipped, s=3, zorder=0, c='lightskyblue')
-                plt.scatter(allwise_year, w2_clipped, s=3, zorder=1, c='pink')
-
-                w1_clipped = sigma_clip(neowise['w1mpro'], sigma=sigma, maxiters=maxiters)
-                w2_clipped = sigma_clip(neowise['w2mpro'], sigma=sigma, maxiters=maxiters)
-                plt.scatter(neowise_year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
-                plt.scatter(neowise_year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
+                w1_clipped = sigma_clip(phot_table['w1mpro'], sigma=sigma, maxiters=maxiters)
+                w2_clipped = sigma_clip(phot_table['w2mpro'], sigma=sigma, maxiters=maxiters)
+                plt.scatter(phot_table_year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
+                plt.scatter(phot_table_year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
 
         if yticks:
             plt.yticks(yticks)

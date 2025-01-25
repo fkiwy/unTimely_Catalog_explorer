@@ -16,6 +16,6 @@ ucx.create_finder_charts(overlays=True, overlay_color='green', overlay_labels=Tr
                          image_contrast=5, open_file=False, file_format='pdf')
 
 ucx.create_light_curves(photometry_radius=2, yticks=None, open_file=False, file_format='pdf', overplot_l1b_phot=True, bin_l1b_phot=True,
-                        plot_statistics=True)
+                        save_l1b_phot=True, plot_statistics=True)
 
 ucx.create_image_blinks(blink_duration=300, image_zoom=10, image_contrast=5, separate_scan_dir=True, display_blinks=False)
