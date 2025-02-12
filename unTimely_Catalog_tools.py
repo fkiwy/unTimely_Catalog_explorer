@@ -236,18 +236,20 @@ class unTimelyCatalogExplorer:
         ]
         """
 
-        allwise.rename_column('w1mpro_ep', 'w1mpro')
-        allwise.rename_column('w1sigmpro_ep', 'w1sigmpro')
-        allwise.rename_column('w2mpro_ep', 'w2mpro')
-        allwise.rename_column('w2sigmpro_ep', 'w2sigmpro')
-        allwise['qual_frame'] = np.nan
+        if len(allwise) > 0:
+            allwise.rename_column('w1mpro_ep', 'w1mpro')
+            allwise.rename_column('w1sigmpro_ep', 'w1sigmpro')
+            allwise.rename_column('w2mpro_ep', 'w2mpro')
+            allwise.rename_column('w2sigmpro_ep', 'w2sigmpro')
+            allwise['qual_frame'] = np.nan
+            neowise = vstack([allwise, neowise])
 
-        table = vstack([allwise, neowise])
-        table['mjd'].unit = 'd'
-        table['year'] = np.round(Time(table['mjd'], format='mjd').jyear, 7)
-        table.sort('mjd')
+        if len(neowise) > 0:
+            neowise['mjd'].unit = 'd'
+            neowise['year'] = np.round(Time(neowise['mjd'], format='mjd').jyear, 7)
+            neowise.sort('mjd')
 
-        return table
+        return neowise
 
     def std_error(self, data):
         return np.ma.std(data) / np.ma.sqrt(len(data))
@@ -940,8 +942,8 @@ class unTimelyCatalogExplorer:
         phot_table = result_table[mask]
 
         if (len(phot_table) == 0):
-            print(f'No photometry found in specified radius ({photometry_radius} arcsec) '
-                  f'at given coordinates ({self.target_ra} {self.target_dec}) to create light curves.')
+            print(f'No unTimely photometry found in specified radius ({photometry_radius} arcsec) '
+                  f'at given coordinates ({self.target_ra} {self.target_dec}).')
             return
 
         # Get W1 photometry
@@ -978,49 +980,53 @@ class unTimelyCatalogExplorer:
         if overplot_l1b_phot:
             phot_table = self.get_l1b_photometry(ra, dec, photometry_radius)
 
-            if save_l1b_phot:
-                result_file_name = 'l1b_phot_table_' + self.create_obj_name(ra, dec) + '.' + self.result_table_extension
-                phot_table.write(result_file_name, format=self.result_table_format, overwrite=True)
-
-            sigma, maxiters = 3, None
-            year = phot_table['year']
-
-            if bin_l1b_phot:
-                yr = []
-                w1 = []
-                w2 = []
-                e_w1 = []
-                e_w2 = []
-
-                if len(phot_table) > 0:
-                    year_bin = np.trunc(year / 0.5)
-                    grouped = phot_table.group_by(year_bin)
-
-                    for group in grouped.groups:
-                        w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
-                        w2_clipped = sigma_clip(group['w2mpro'], sigma=sigma, maxiters=maxiters)
-                        yr.append(np.ma.median(group['year']))
-                        w1.append(np.ma.median(w1_clipped))
-                        w2.append(np.ma.median(w2_clipped))
-                        e_w1.append(self.std_error(w1_clipped))
-                        e_w2.append(self.std_error(w2_clipped))
-
-                plt.errorbar(yr, w1, e_w1, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W1', zorder=0, c='lightskyblue')
-                plt.errorbar(yr, w2, e_w2, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W2', zorder=1, c='pink')
-
-                if plot_statistics:
-                    stats, peaks = self.create_light_curve_stats(yr, w1, e_w1, 'L1b median W1', 'lightskyblue', variability_threshold)
-                    text = '\n L1b median W1 - Statistics: ' + stats + ' Notable peaks: ' + peaks
-                    plt.text(0, -0.2, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
-
-                    stats, peaks = self.create_light_curve_stats(yr, w2, e_w2, 'L1b median W2', 'pink', variability_threshold)
-                    text = '\n L1b median W2 - Statistics: ' + stats + ' Notable peaks: ' + peaks
-                    plt.text(0, -0.25, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
+            if (len(phot_table) == 0):
+                print(f'No L1b photometry found in specified radius ({photometry_radius} arcsec) '
+                      f'at given coordinates ({self.target_ra} {self.target_dec}).')
             else:
-                w1_clipped = sigma_clip(phot_table['w1mpro'], sigma=sigma, maxiters=maxiters)
-                w2_clipped = sigma_clip(phot_table['w2mpro'], sigma=sigma, maxiters=maxiters)
-                plt.scatter(year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
-                plt.scatter(year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
+                if save_l1b_phot:
+                    result_file_name = 'l1b_phot_table_' + self.create_obj_name(ra, dec) + '.' + self.result_table_extension
+                    phot_table.write(result_file_name, format=self.result_table_format, overwrite=True)
+
+                sigma, maxiters = 3, None
+                year = phot_table['year']
+
+                if bin_l1b_phot:
+                    yr = []
+                    w1 = []
+                    w2 = []
+                    e_w1 = []
+                    e_w2 = []
+
+                    if len(phot_table) > 0:
+                        year_bin = np.trunc(year / 0.5)
+                        grouped = phot_table.group_by(year_bin)
+
+                        for group in grouped.groups:
+                            w1_clipped = sigma_clip(group['w1mpro'], sigma=sigma, maxiters=maxiters)
+                            w2_clipped = sigma_clip(group['w2mpro'], sigma=sigma, maxiters=maxiters)
+                            yr.append(np.ma.median(group['year']))
+                            w1.append(np.ma.median(w1_clipped))
+                            w2.append(np.ma.median(w2_clipped))
+                            e_w1.append(self.std_error(w1_clipped))
+                            e_w2.append(self.std_error(w2_clipped))
+
+                    plt.errorbar(yr, w1, e_w1, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W1', zorder=0, c='lightskyblue')
+                    plt.errorbar(yr, w2, e_w2, lw=0.5, ms=2, marker='o', capsize=1.5, capthick=0.3, elinewidth=0.3, label='L1b median W2', zorder=1, c='pink')
+
+                    if plot_statistics:
+                        stats, peaks = self.create_light_curve_stats(yr, w1, e_w1, 'L1b median W1', 'lightskyblue', variability_threshold)
+                        text = '\n L1b median W1 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+                        plt.text(0, -0.2, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
+
+                        stats, peaks = self.create_light_curve_stats(yr, w2, e_w2, 'L1b median W2', 'pink', variability_threshold)
+                        text = '\n L1b median W2 - Statistics: ' + stats + ' Notable peaks: ' + peaks
+                        plt.text(0, -0.25, text, ha='left', va='top', fontsize=5, transform=plt.gca().transAxes)
+                else:
+                    w1_clipped = sigma_clip(phot_table['w1mpro'], sigma=sigma, maxiters=maxiters)
+                    w2_clipped = sigma_clip(phot_table['w2mpro'], sigma=sigma, maxiters=maxiters)
+                    plt.scatter(year, w1_clipped, s=3, label='L1b W1', zorder=0, c='lightskyblue')
+                    plt.scatter(year, w2_clipped, s=3, label='L1b W2', zorder=1, c='pink')
 
         if yticks:
             plt.yticks(yticks)
